@@ -10,7 +10,8 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    # TODO: put package requirements here
+    "rlp==0.4.6",
+    "pysha3==1.0b1"
 ]
 
 test_requirements = [
