@@ -74,6 +74,9 @@ class EthNamespace(Namespace):
     def getTransactionReceipt(self, txhash):
         return self("getTransactionReceipt", txhash)
 
+    def getCode(self, address, tag="latest"):
+        return self("getCode", address, tag)
+
 class MinerNamespace(Namespace):
     name = "miner"
 
