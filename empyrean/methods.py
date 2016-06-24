@@ -74,8 +74,35 @@ class EthNamespace(Namespace):
     def getTransactionReceipt(self, txhash):
         return self("getTransactionReceipt", txhash)
 
+    def call(self, _from, to=None,
+             gas=None,
+             gasPrice=None,
+             value=None,
+             data=None,
+             qty_or_tag=None):
+        params = {}
+        params['from'] = _from
+
+        if to is not None:
+            params['to'] = to
+
+        if gas is not None:
+            params["gas"] = hex(gas)
+
+        if gasPrice is not None:
+            params['gasPrice'] = hex(gasPrice)
+
+        if value is not None:
+            params['value'] = hex(value)
+
+        if data is not None:
+            params['data'] = data
+
+        return self("call", params, "latest")  # , qty_or_tag)
+
     def getCode(self, address, tag="latest"):
         return self("getCode", address, tag)
+
 
 class MinerNamespace(Namespace):
     name = "miner"
