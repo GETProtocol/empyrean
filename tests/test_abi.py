@@ -14,8 +14,10 @@ import pytest
 from empyrean.abi import tohex
 from empyrean.abi import enc_string
 from empyrean.abi import enc_method
+from empyrean.abi import parse_signature
 
 # inspiration: https://github.com/ethereum/pyethereum/blob/develop/ethereum/tests/test_abi.py
+# https://github.com/ethereum/tests/ABITests
 
 class TestMethodABI(object):
 
@@ -52,3 +54,17 @@ class TestString(object):
                b"0000000000000000000000000000000c"
                b"48656c6c6f2c20776f726c6400000000"
                b"00000000000000000000000000000000")
+
+class TestSignatureParser(object):
+    def test_empty(self):
+        assert parse_signature("method()") == ("method", [])
+
+    def test_single_arg(self):
+        assert parse_signature("method(a)") == ("method", ["a"])
+
+    def test_multi_args(self):
+        assert parse_signature("method(a,b,c)") == ("method", ["a", "b", "c"])
+
+    def test_parse_error(self):
+        with pytest.raises(ValueError):
+            parse_signature("method")

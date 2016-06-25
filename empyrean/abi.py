@@ -1,3 +1,4 @@
+import re
 import sha3
 import rlp
 import binascii
@@ -28,6 +29,20 @@ def enc_uint256(i):
     so there's a static part (possibly containing offsets of dynamic
     arguments) and a dynamic part
 """
+
+def parse_signature(signature):
+    """ parse method(type,type,type) into method and types.
+        types are not normalized """
+
+    try:
+        method, *rest, _ = re.split("[(),]", signature)
+    except ValueError:  # didn't get the expected amount of items
+        raise
+
+    args = [x for x in rest if x]
+
+    return method, args
+
 def enc_string(s):
     """ a variable length string """
 
