@@ -30,6 +30,7 @@ def enc_uint256(i):
     arguments) and a dynamic part
 """
 
+
 def parse_signature(signature):
     """ parse method(type,type,type) into method and types.
         types are not normalized """
@@ -42,6 +43,7 @@ def parse_signature(signature):
     args = [x for x in rest if x]
 
     return method, args
+
 
 def enc_string(s):
     """ a variable length string """
@@ -70,6 +72,35 @@ def build_payload(signature, *args):
     method = enc_method(signature)
     args = enc_uint256(args[0])
     return tohex(method + args)
+
+
+def encode_type(type, arg):
+    if type.startswith("uint"):
+        return enc_uint256(arg)
+    raise TypeError("Unknown type {}".format(type))
+
+
+def encode_abi(signature, args):
+    res = b""
+    assert len(signature) == len(args)
+    for type, arg in zip(signature, args):
+        is_arr = '[' in type
+        is_unsized = '[]' in type
+        count = 1
+
+        if is_unsized:
+            res += encode_type("uint256", len(arg))
+            for array_index in range(len(arg)):
+                res += encode_type(type, arg[array_index])
+        elif is_arr:
+            count = int(re.split(r'[\[\]]', type)[1])
+
+            for array_index in range(count):
+                res += encode_type(type, arg[array_index])
+        else:
+            res += encode_type(type, arg)
+
+    return res
 
 
 # print(build_payload("multiply(uint256)", 6))
