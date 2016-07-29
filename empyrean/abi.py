@@ -74,33 +74,69 @@ def build_payload(signature, *args):
     return tohex(method + args)
 
 
-def encode_type(type, arg):
-    if type.startswith("uint"):
-        return enc_uint256(arg)
-    raise TypeError("Unknown type {}".format(type))
+class ABIType:
+
+    def __init__(self, type):
+        self.type = type
+        self.count = 1
+        self.isdynamic = self.type in ('string', 'bytes')
+        self.isarray = False
+
+        if '[' in self.type:
+            self.isarray = True
+            _, scount, _ = re.split(r'[\[\]]', type)
+            if scount == '':
+                self.count = 0
+                self.isdynamic = True
+            else:
+                self.count = int(scount)
+
+    def size(self):
+        return self.count * 32
+
+    def primitive_enc(self, value):
+        if self.type.startswith("uint"):
+            return enc_uint256(value)
+        raise TypeError("Unknown type {}".format(type))
+
+    def enc(self, value):
+        res = b""
+
+        if self.isdynamic:
+            if self.isarray:
+                res += lentype.enc(len(value))
+                for array_value in value:
+                    res += self.primitive_enc(array_value)
+            # else handle string, bytes
+        elif self.isarray:
+
+            for array_index in range(self.count):
+                res += self.primitive_enc(value[array_index])
+        else:
+            res += self.primitive_enc(value)
+
+        return res
+
+lentype = ABIType("uint256")
 
 
 def encode_abi(signature, args):
-    res = b""
+    head = b""
+    tail = b""
+    headsize = 0
+
     assert len(signature) == len(args)
     for type, arg in zip(signature, args):
-        is_arr = '[' in type
-        is_unsized = '[]' in type
-        count = 1
+        type = ABIType(type)
 
-        if is_unsized:
-            res += encode_type("uint256", len(arg))
-            for array_index in range(len(arg)):
-                res += encode_type(type, arg[array_index])
-        elif is_arr:
-            count = int(re.split(r'[\[\]]', type)[1])
-
-            for array_index in range(count):
-                res += encode_type(type, arg[array_index])
+        if type.isdynamic:
+            headsize += 32
+            head += lentype.enc(headsize + len(tail))
+            tail += type.enc(arg)
         else:
-            res += encode_type(type, arg)
-
-    return res
+            headsize += type.size()
+            head += type.enc(arg)
+    return head + tail
 
 
 # print(build_payload("multiply(uint256)", 6))
