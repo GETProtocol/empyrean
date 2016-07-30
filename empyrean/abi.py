@@ -15,7 +15,9 @@ def tohex(b):
     return binascii.hexlify(b)
 
 
-def enc_uint256(i):
+def enc_uint256(i, bits=256):
+    if i >= 2**bits:
+        raise ValueError("Value too large for uint{}: {}".format(bits, i))
     return rlp.utils.int_to_big_endian(i).rjust(32, b'\x00')
 
 """
@@ -81,6 +83,7 @@ class ABIType:
         self.count = 1
         self.isdynamic = self.type in ('string', 'bytes')
         self.isarray = False
+        self.bits = self.getbits()
 
         if '[' in self.type:
             self.isarray = True
@@ -91,12 +94,21 @@ class ABIType:
             else:
                 self.count = int(scount)
 
+    def getbits(self):
+        spec = re.search("(\d+)x?(\d+)?", self.type)
+        if spec:
+            groups = spec.groups()
+            if groups[1]:
+                return int(groups[0]) + int(groups[1])
+            return int(groups[0])
+        return 0
+ 
     def size(self):
         return self.count * 32
 
     def primitive_enc(self, value):
         if self.type.startswith("uint"):
-            return enc_uint256(value)
+            return enc_uint256(value, self.bits)
         raise TypeError("Unknown type {}".format(type))
 
     def enc(self, value):

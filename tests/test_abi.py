@@ -10,12 +10,12 @@ Tests for `empyrean` module.
 
 import pytest
 
-
 from empyrean.abi import tohex
 from empyrean.abi import enc_string, enc_uint256
 from empyrean.abi import enc_method
 from empyrean.abi import parse_signature
 from empyrean.abi import encode_abi
+from empyrean.abi import ABIType
 
 # inspiration:
 # https://github.com/ethereum/pyethereum/blob/develop/ethereum/tests/test_abi.py
@@ -39,6 +39,113 @@ class TestMethodABI:
         # https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI#examples
         assert tohex(enc_method("sam(bytes,bool,uint256[])")) == b'a5643bf2'
 
+
+@pytest.fixture(params=range(8, 264, 8))
+def multiple_of_eight(request):
+    return request.param
+
+
+@pytest.fixture(params=range(1, 33))
+def one_to_thirtytwo(request):
+    return request.param
+
+
+class TestEncUintTypeClass:
+
+    def test_size(self, multiple_of_eight):
+        assert ABIType("uint{}".format(multiple_of_eight)).size() == 32
+
+    @pytest.mark.parametrize("size,expect",
+                             [(i, i * 32) for i in (1, 2, 10, 20, 100)])
+    def test_fixedarray_size2(self, multiple_of_eight, size, expect):
+        t = "uint{}[{}]".format(multiple_of_eight, size)
+        assert ABIType(t).size() == expect
+
+    def test_not_dynamic(self, multiple_of_eight):
+        assert not ABIType("uint{}".format(multiple_of_eight)).isdynamic
+
+    def test_enc(self, multiple_of_eight):
+        t = ABIType("uint{}".format(multiple_of_eight))
+        assert tohex(t.enc(0)) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(t.enc(1)) == \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        assert tohex(t.enc(42)) == \
+            b'000000000000000000000000000000000000000000000000000000000000002a'
+
+    def test_max(self, multiple_of_eight):
+        t = ABIType("uint{}".format(multiple_of_eight))
+        assert t.enc(2**multiple_of_eight - 1)
+
+    def test_too_large(self, multiple_of_eight):
+        t = ABIType("uint{}".format(multiple_of_eight))
+        with pytest.raises(ValueError):
+            tohex(t.enc(2**multiple_of_eight))
+
+
+class TestSizeTypeClass:
+
+    def test_int_size(self, multiple_of_eight):
+        assert ABIType("int{}".format(multiple_of_eight)).size() == 32
+
+    def test_fixed_size(self, multiple_of_eight):
+        # wrong! m+n = 256! (so 256 itself isn't a usable multiple_of_eight)
+        assert ABIType("fixed{0}x{0}".format(multiple_of_eight)).size() == 32
+
+    def test_bool_size(self):
+        assert ABIType("bool").size() == 32
+
+    def test_bytes_size(self, one_to_thirtytwo):
+        assert ABIType("bytes{}".format(one_to_thirtytwo)).size() == 32
+
+    @pytest.mark.parametrize("size,expect",
+                             [(i, i * 32) for i in (1, 2, 10, 20, 100)])
+    def test_int_fixedarray_size2(self, multiple_of_eight, size, expect):
+        t="uint{}[{}]".format(multiple_of_eight, size)
+        assert ABIType(t).size() == expect
+
+    @pytest.mark.parametrize("size,expect",
+                             [(i, i * 32) for i in (1, 2, 10, 20, 100)])
+    def test_fixed_fixedarray_size2(self, multiple_of_eight, size, expect):
+        t="fixed{0}x{0}[{1}]".format(multiple_of_eight, size)
+        assert ABIType(t).size() == expect
+
+
+class TestNotDynamicTypeClass:
+
+
+    def test_int_is_not_dynamic(self, multiple_of_eight):
+        assert not ABIType("int{}".format(multiple_of_eight)).isdynamic
+
+    def test_fixed_is_not_dynamic(self, multiple_of_eight):
+        assert not ABIType("fixed{0}x{0}".format(multiple_of_eight)).isdynamic
+
+    def test_bool_is_not_dynamic(self):
+        assert not ABIType("bool").isdynamic
+
+    def test_bytes_is_not_dynamic(self, one_to_thirtytwo):
+        assert not ABIType("bytes{}".format(one_to_thirtytwo)).isdynamic
+
+
+class TestDynamicTypeClass:
+
+    def test_bytes_is_dynamic(self):
+        assert ABIType("bytes").isdynamic
+
+    def test_string_is_dynamic(self):
+        assert ABIType("string").isdynamic
+
+    def test_uint_unsized_array_is_dynamic(self, multiple_of_eight):
+        assert ABIType("uint{}[]".format(multiple_of_eight)).isdynamic
+
+    def test_int_unsized_array_is_dynamic(self, multiple_of_eight):
+        assert ABIType("uint{}[]".format(multiple_of_eight)).isdynamic
+
+    def test_fixed_unsized_array_is_dynamic(self, multiple_of_eight):
+        assert ABIType("fixed{0}x{0}[]".format(multiple_of_eight)).isdynamic
+
+    def test_bool_unsized_array_is_dynamic(self):
+        assert ABIType("bool[]").isdynamic
 
 class TestPrimitiveTypes:
     """ Test encoding of different type/arguments """
