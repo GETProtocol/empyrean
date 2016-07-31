@@ -27,6 +27,11 @@ def enc_int256(i, bits=256):
     return rlp.utils.int_to_big_endian(i % 2 ** bits).rjust(32, b'\x00')
 
 
+def enc_bool(i):
+    v = 1 if i else 0
+    return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
+
+
 def parse_signature(signature):
     """ parse method(type,type,type) into method and types.
         types are not normalized """
@@ -105,6 +110,8 @@ class ABIType:
             return enc_uint256(value, self.bits)
         if self.type.startswith("int"):
             return enc_int256(value, self.bits)
+        if self.type == "bool":
+            return enc_bool(value)
         raise TypeError("Unknown type {}".format(self.type))
 
     def enc(self, value):

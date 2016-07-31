@@ -50,7 +50,7 @@ def one_to_thirtytwo(request):
     return request.param
 
 
-class TestUintTypeClass:
+class TestUintType:
 
     def test_size(self, multiple_of_eight):
         assert ABIType("uint{}".format(multiple_of_eight)).size() == 32
@@ -88,7 +88,7 @@ class TestUintTypeClass:
             tohex(t.enc(2**multiple_of_eight))
 
 
-class TestIntTypeClass:
+class TestIntType:
 
     def test_int_size(self, multiple_of_eight):
         assert ABIType("int{}".format(multiple_of_eight)).size() == 32
@@ -129,35 +129,48 @@ class TestIntTypeClass:
             tohex(t.enc(2**(multiple_of_eight - 1) + 1))
 
 
+class TestBoolType:
+
+    def test_bool_size(self):
+        assert ABIType("bool").size() == 32
+
+    def test_bool_is_not_dynamic(self):
+        assert not ABIType("bool").isdynamic
+
+    @pytest.mark.parametrize("falsy", [0, '', b'', [], {}, set()])
+    def test_enc_false(self, falsy):
+        t = ABIType("bool")
+        assert tohex(t.enc(falsy)) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+
+    @pytest.mark.parametrize("truthy",
+                             [1, -1, 'x', b'x', [1], {1}, {1: 1}, object()])
+    def test_enc_true(self, truthy):
+        t = ABIType("bool")
+        assert tohex(t.enc(truthy)) == \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+
+
 class TestSizeTypeClass:
 
     def test_fixed_size(self, multiple_of_eight):
         # wrong! m+n = 256! (so 256 itself isn't a usable multiple_of_eight)
         assert ABIType("fixed{0}x{0}".format(multiple_of_eight)).size() == 32
 
-    def test_bool_size(self):
-        assert ABIType("bool").size() == 32
-
     def test_bytes_size(self, one_to_thirtytwo):
         assert ABIType("bytes{}".format(one_to_thirtytwo)).size() == 32
-
 
     @pytest.mark.parametrize("size,expect",
                              [(i, i * 32) for i in (1, 2, 10, 20, 100)])
     def test_fixed_fixedarray_size2(self, multiple_of_eight, size, expect):
-        t="fixed{0}x{0}[{1}]".format(multiple_of_eight, size)
+        t = "fixed{0}x{0}[{1}]".format(multiple_of_eight, size)
         assert ABIType(t).size() == expect
 
 
 class TestNotDynamicTypeClass:
 
-
-
     def test_fixed_is_not_dynamic(self, multiple_of_eight):
         assert not ABIType("fixed{0}x{0}".format(multiple_of_eight)).isdynamic
-
-    def test_bool_is_not_dynamic(self):
-        assert not ABIType("bool").isdynamic
 
     def test_bytes_is_not_dynamic(self, one_to_thirtytwo):
         assert not ABIType("bytes{}".format(one_to_thirtytwo)).isdynamic
@@ -182,6 +195,7 @@ class TestDynamicTypeClass:
 
     def test_bool_unsized_array_is_dynamic(self):
         assert ABIType("bool[]").isdynamic
+
 
 class TestPrimitiveTypes:
     """ Test encoding of different type/arguments """
@@ -234,7 +248,8 @@ class TestABIEncode:
     # @pytest.skip("not there yet")
     def xtest_example(self):
         assert tohex(encode_abi(["uint", "uint32[]", "bytes10", bytes],
-                                (0x123, [0x456, 0x789], "1234567890", "Hello, world!"))) == (
+                                (0x123, [0x456, 0x789], "1234567890",
+                                 "Hello, world!"))) == (
             b'0000000000000000000000000000000000000000000000000000000000000123'
             b'0000000000000000000000000000000000000000000000000000000000000080'
             b'3132333435363738393000000000000000000000000000000000000000000000'
