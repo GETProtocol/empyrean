@@ -16,21 +16,15 @@ def tohex(b):
 
 
 def enc_uint256(i, bits=256):
-    if i >= 2**bits:
-        raise ValueError("Value too large for uint{}: {}".format(bits, i))
+    if i < 0 or i >= 2**bits:
+        raise ValueError("Value out of range for uint{}: {}".format(bits, i))
     return rlp.utils.int_to_big_endian(i).rjust(32, b'\x00')
 
-"""
-    Dynamic types (such as string) don't get encoded directly but
-    get appended to the end. Their offset within the entire string
-    gets inserted in stead.
 
-    E.g. <static type><static type><offset 1><static type><dynamic type>
-    where offset 1 is the len of all parts up to <dynamic type>
-
-    so there's a static part (possibly containing offsets of dynamic
-    arguments) and a dynamic part
-"""
+def enc_int256(i, bits=256):
+    if i < -2 ** (bits - 1) or i >= 2 ** (bits - 1):
+        raise ValueError("Value out of range for int{}: {}".format(bits, i))
+    return rlp.utils.int_to_big_endian(i % 2 ** bits).rjust(32, b'\x00')
 
 
 def parse_signature(signature):
@@ -102,14 +96,16 @@ class ABIType:
                 return int(groups[0]) + int(groups[1])
             return int(groups[0])
         return 0
- 
+
     def size(self):
         return self.count * 32
 
     def primitive_enc(self, value):
         if self.type.startswith("uint"):
             return enc_uint256(value, self.bits)
-        raise TypeError("Unknown type {}".format(type))
+        if self.type.startswith("int"):
+            return enc_int256(value, self.bits)
+        raise TypeError("Unknown type {}".format(self.type))
 
     def enc(self, value):
         res = b""

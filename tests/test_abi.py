@@ -50,14 +50,14 @@ def one_to_thirtytwo(request):
     return request.param
 
 
-class TestEncUintTypeClass:
+class TestUintTypeClass:
 
     def test_size(self, multiple_of_eight):
         assert ABIType("uint{}".format(multiple_of_eight)).size() == 32
 
     @pytest.mark.parametrize("size,expect",
                              [(i, i * 32) for i in (1, 2, 10, 20, 100)])
-    def test_fixedarray_size2(self, multiple_of_eight, size, expect):
+    def test_fixedarray_size(self, multiple_of_eight, size, expect):
         t = "uint{}[{}]".format(multiple_of_eight, size)
         assert ABIType(t).size() == expect
 
@@ -77,16 +77,59 @@ class TestEncUintTypeClass:
         t = ABIType("uint{}".format(multiple_of_eight))
         assert t.enc(2**multiple_of_eight - 1)
 
+    def test_too_small(self, multiple_of_eight):
+        t = ABIType("uint{}".format(multiple_of_eight))
+        with pytest.raises(ValueError):
+            tohex(t.enc(-1))
+
     def test_too_large(self, multiple_of_eight):
         t = ABIType("uint{}".format(multiple_of_eight))
         with pytest.raises(ValueError):
             tohex(t.enc(2**multiple_of_eight))
 
 
-class TestSizeTypeClass:
+class TestIntTypeClass:
 
     def test_int_size(self, multiple_of_eight):
         assert ABIType("int{}".format(multiple_of_eight)).size() == 32
+
+    @pytest.mark.parametrize("size,expect",
+                             [(i, i * 32) for i in (1, 2, 10, 20, 100)])
+    def test_int_fixedarray_size(self, multiple_of_eight, size, expect):
+        t = "uint{}[{}]".format(multiple_of_eight, size)
+        assert ABIType(t).size() == expect
+
+    def test_int_is_not_dynamic(self, multiple_of_eight):
+        assert not ABIType("int{}".format(multiple_of_eight)).isdynamic
+
+    def test_enc(self, multiple_of_eight):
+        t = ABIType("int{}".format(multiple_of_eight))
+        assert tohex(t.enc(0)) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(t.enc(1)) == \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        assert tohex(t.enc(42)) == \
+            b'000000000000000000000000000000000000000000000000000000000000002a'
+
+        bytes = multiple_of_eight // 8
+
+        assert tohex(t.enc(-1)) == \
+            b'00' * (32 - bytes) + b'ff' * (bytes - 1) + b'ff'
+        assert tohex(t.enc(-42)) == \
+            b'00' * (32 - bytes) + b'ff' * (bytes - 1) + b'd6'
+
+    def test_too_small(self, multiple_of_eight):
+        t = ABIType("int{}".format(multiple_of_eight))
+        with pytest.raises(ValueError):
+            tohex(t.enc(-2**(multiple_of_eight - 1) - 1))
+
+    def test_too_large(self, multiple_of_eight):
+        t = ABIType("int{}".format(multiple_of_eight))
+        with pytest.raises(ValueError):
+            tohex(t.enc(2**(multiple_of_eight - 1) + 1))
+
+
+class TestSizeTypeClass:
 
     def test_fixed_size(self, multiple_of_eight):
         # wrong! m+n = 256! (so 256 itself isn't a usable multiple_of_eight)
@@ -98,11 +141,6 @@ class TestSizeTypeClass:
     def test_bytes_size(self, one_to_thirtytwo):
         assert ABIType("bytes{}".format(one_to_thirtytwo)).size() == 32
 
-    @pytest.mark.parametrize("size,expect",
-                             [(i, i * 32) for i in (1, 2, 10, 20, 100)])
-    def test_int_fixedarray_size2(self, multiple_of_eight, size, expect):
-        t="uint{}[{}]".format(multiple_of_eight, size)
-        assert ABIType(t).size() == expect
 
     @pytest.mark.parametrize("size,expect",
                              [(i, i * 32) for i in (1, 2, 10, 20, 100)])
@@ -114,8 +152,6 @@ class TestSizeTypeClass:
 class TestNotDynamicTypeClass:
 
 
-    def test_int_is_not_dynamic(self, multiple_of_eight):
-        assert not ABIType("int{}".format(multiple_of_eight)).isdynamic
 
     def test_fixed_is_not_dynamic(self, multiple_of_eight):
         assert not ABIType("fixed{0}x{0}".format(multiple_of_eight)).isdynamic
