@@ -173,7 +173,8 @@ class TestBytesType:
     def test_bytes_is_dynamic(self):
         assert ABIType("bytes").isdynamic
 
-
+    ## TODO: Implement dynamic bytes type
+    
 class TestBoolType:
 
     def test_bool_size(self):
