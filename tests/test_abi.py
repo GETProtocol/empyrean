@@ -140,6 +140,33 @@ class TestBytesType:
     def test_bytes_size(self, one_to_thirtytwo):
         assert ABIType("bytes{}".format(one_to_thirtytwo)).size() == 32
 
+    def test_enc(self, one_to_thirtytwo):
+        t = ABIType("bytes{}".format(one_to_thirtytwo))
+        assert tohex(t.enc(b'\x00')) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(t.enc(b'\x01')) == \
+            b'0100000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(t.enc(b'\xff')) == \
+            b'ff00000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(t.enc(b'A')) == \
+            b'4100000000000000000000000000000000000000000000000000000000000000'
+        # assert tohex(t.enc(b'ABC')) == \
+        #     b'4142430000000000000000000000000000000000000000000000000000000000'
+
+    def test_larger_than_32(self):
+        t = ABIType("bytes{}".format(one_to_thirtytwo))
+        with pytest.raises(ValueError):
+            t.enc(b'A' * 33)
+
+    def test_not_too_large(self, one_to_thirtytwo):
+        t = ABIType("bytes{}".format(one_to_thirtytwo))
+        t.enc(b'A' * one_to_thirtytwo)
+
+    def test_too_large(self, one_to_thirtytwo):
+        t = ABIType("bytes{}".format(one_to_thirtytwo))
+        with pytest.raises(ValueError):
+            t.enc(b'A' * (one_to_thirtytwo + 1))
+
     def test_bytes_is_not_dynamic(self, one_to_thirtytwo):
         assert not ABIType("bytes{}".format(one_to_thirtytwo)).isdynamic
 
@@ -184,9 +211,6 @@ class TestFixedType:
     def test_fixed_unsized_array_is_dynamic(self, multiple_of_eight):
         assert ABIType("fixed{0}x{0}[]".format(multiple_of_eight)).isdynamic
 
-
-class TestSizeTypeClass:
-
     @pytest.mark.parametrize("size,expect",
                              [(i, i * 32) for i in (1, 2, 10, 20, 100)])
     def test_fixed_fixedarray_size2(self, multiple_of_eight, size, expect):
@@ -194,7 +218,7 @@ class TestSizeTypeClass:
         assert ABIType(t).size() == expect
 
 
-class TestDynamicTypeClass:
+class TestStringType:
 
     def test_string_is_dynamic(self):
         assert ABIType("string").isdynamic

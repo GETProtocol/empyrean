@@ -32,6 +32,16 @@ def enc_bool(i):
     return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
 
 
+def enc_bytes(b, size):
+    """ size can be between 1 .. 32 or 0 (dynamic)"""
+    if len(b) > 32:
+        raise ValueError("Byte string is longer than 32 bytes")
+    if len(b) > size:
+        raise ValueError("Byte string is larger than defined {}".format(size))
+    remainder = 32 - len(b)
+    return b + b'\x00' * remainder
+
+
 def parse_signature(signature):
     """ parse method(type,type,type) into method and types.
         types are not normalized """
@@ -112,6 +122,9 @@ class ABIType:
             return enc_int256(value, self.bits)
         if self.type == "bool":
             return enc_bool(value)
+        if self.type.startswith("bytes"):
+            # in the case of bytes size is bytes, not self.bits
+            return enc_bytes(value, self.bits)
         raise TypeError("Unknown type {}".format(self.type))
 
     def enc(self, value):
@@ -137,7 +150,7 @@ lentype = ABIType("uint256")
 
 def encode_abi(signature, args):
     """ Encode a number of arguments given a specific signature.
- 
+
         E.g. encode_abi(["uint32[]"], [[6, 69]])
     """
     head = b""
