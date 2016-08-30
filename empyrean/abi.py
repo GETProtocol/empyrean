@@ -136,6 +136,10 @@ lentype = ABIType("uint256")
 
 
 def encode_abi(signature, args):
+    """ Encode a number of arguments given a specific signature.
+ 
+        E.g. encode_abi(["uint32[]"], [[6, 69]])
+    """
     head = b""
     tail = b""
     headsize = 0
