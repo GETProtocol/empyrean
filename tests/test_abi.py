@@ -121,6 +121,15 @@ class TestIntType:
         assert tohex(t.enc(-42)) == \
             b'00' * (32 - bytes) + b'ff' * (bytes - 1) + b'd6'
 
+    def test_encode_abi(self, multiple_of_eight):
+        type = "int{}".format(multiple_of_eight)
+        assert tohex(encode_abi([type], [0])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(encode_abi([type], [1])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        assert tohex(encode_abi([type], [42])) == \
+            b'000000000000000000000000000000000000000000000000000000000000002a'
+
     def test_too_small(self, multiple_of_eight):
         t = ABIType("int{}".format(multiple_of_eight))
         with pytest.raises(ValueError):
