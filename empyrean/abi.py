@@ -32,6 +32,25 @@ def enc_bool(i):
     return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
 
 
+def enc_ufixed(i, bits, low, high):
+
+    if bits <= 0 or bits > 256:
+        raise ValueError(
+            "high+low must be between 0 .. 256 and divisible by 8")
+
+    if high % 8 or low % 8:
+        raise ValueError(
+            "high+low must be between 0 .. 256 and divisible by 8")
+
+    if i < 0 or i >= 2 ** high:
+        raise ValueError("Value out of range for ufixed{}x{}: {}".format(
+            high, low, i))
+
+    float_point = i * 2 ** low
+    fixed_point = int(float_point)
+    return rlp.utils.int_to_big_endian(fixed_point).rjust(32, b'\x00')
+
+
 def enc_bytes_dynamic(b):
     """ dynamic bytes string """
     return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
@@ -122,6 +141,14 @@ class ABIType:
             return int(groups[0])
         return 0
 
+    def getlowhigh(self):
+        spec = re.search("(\d+)x?(\d+)?", self.type)
+        if spec:
+            groups = spec.groups()
+            if groups[1]:
+                return int(groups[0]), int(groups[1])
+        return 0, 256
+
     def size(self):
         return self.count * 32
 
@@ -135,6 +162,9 @@ class ABIType:
         if self.type.startswith("bytes"):
             # in the case of bytes size is bytes, not self.bits
             return enc_bytes(value, self.bits)
+        if self.type.startswith("ufixed"):
+            low, high = self.getlowhigh()
+            return enc_ufixed(value, self.bits, low, high)
         raise TypeError("Unknown type {}".format(self.type))
 
     def enc(self, value):

@@ -73,6 +73,15 @@ class TestUintType:
         assert tohex(t.enc(42)) == \
             b'000000000000000000000000000000000000000000000000000000000000002a'
 
+    def test_encode_abi(self, multiple_of_eight):
+        type = "uint{}".format(multiple_of_eight)
+        assert tohex(encode_abi([type], [0])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(encode_abi([type], [1])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        assert tohex(encode_abi([type], [42])) == \
+            b'000000000000000000000000000000000000000000000000000000000000002a'
+
     def test_max(self, multiple_of_eight):
         t = ABIType("uint{}".format(multiple_of_eight))
         assert t.enc(2**multiple_of_eight - 1)
@@ -240,11 +249,18 @@ class TestBoolType:
         assert tohex(t.enc(truthy)) == \
             b'0000000000000000000000000000000000000000000000000000000000000001'
 
+    def test_encode_abi(self):
+        assert tohex(encode_abi(["bool"], [True])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+
+        assert tohex(encode_abi(["bool"], [False])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+
     def test_bool_unsized_array_is_dynamic(self):
         assert ABIType("bool[]").isdynamic
 
 
-class TestFixedType:
+class TestUFixedType:
 
     def test_fixed_size(self, multiple_of_eight):
         # wrong! m+n = 256! (so 256 itself isn't a usable multiple_of_eight)
@@ -261,6 +277,16 @@ class TestFixedType:
     def test_fixed_fixedarray_size2(self, multiple_of_eight, size, expect):
         t = "fixed{0}x{0}[{1}]".format(multiple_of_eight, size)
         assert ABIType(t).size() == expect
+
+    def test_enc(self):
+        t = ABIType("ufixed128x128")
+
+        assert tohex(t.enc(1.1)) == \
+            b"00000000000000000000000000000001199999999999a0000000000000000000"
+        t = ABIType("ufixed64x64")
+
+        assert tohex(t.enc(1.1)) == \
+            b"000000000000000000000000000000000000000000000001199999999999a000"
 
 
 class TestStringType:
