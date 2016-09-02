@@ -173,8 +173,32 @@ class TestBytesType:
     def test_bytes_is_dynamic(self):
         assert ABIType("bytes").isdynamic
 
-    ## TODO: Implement dynamic bytes type
-    
+    # TODO: Implement dynamic bytes type
+    def test_enc_bytes(self):
+        t = ABIType("bytes")
+        assert tohex(t.enc(b'Hello World How Are you?'
+                           b' 123456789012345678901234567890')) == (
+            b"00000000000000000000000000000000"
+            b"00000000000000000000000000000037"
+            b"48656c6c6f20576f726c6420486f7720"
+            b"41726520796f753f2031323334353637"
+            b"38393031323334353637383930313233"
+            b"34353637383930000000000000000000")
+
+    def test_enc_bytes_encode_abi(self):
+        res = encode_abi(["bytes"], [b'Hello World How Are you? '
+                                     b'123456789012345678901234567890'])
+        assert tohex(res) == (
+            b"00000000000000000000000000000000"
+            b"00000000000000000000000000000020"
+            b"00000000000000000000000000000000"
+            b"00000000000000000000000000000037"
+            b"48656c6c6f20576f726c6420486f7720"
+            b"41726520796f753f2031323334353637"
+            b"38393031323334353637383930313233"
+            b"34353637383930000000000000000000")
+
+
 class TestBoolType:
 
     def test_bool_size(self):

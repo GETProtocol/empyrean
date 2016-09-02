@@ -32,8 +32,18 @@ def enc_bool(i):
     return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
 
 
+def enc_bytes_dynamic(b):
+    """ dynamic bytes string """
+    return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
+        b.ljust(multiple_of_32(len(b)), b'\x00')
+
+
 def enc_bytes(b, size):
     """ size can be between 1 .. 32 or 0 (dynamic)"""
+    if size == 0:  # dynamic string
+        return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
+            b.ljust(multiple_of_32(len(b)), b'\x00')
+
     if len(b) > 32:
         raise ValueError("Byte string is longer than 32 bytes")
     if len(b) > size:
@@ -43,7 +53,7 @@ def enc_bytes(b, size):
 
 
 def parse_signature(signature):
-    """ parse method(type,type,type) into method and types.
+    """ parse method(type, type, type) into method and types.
         types are not normalized """
 
     try:
@@ -135,7 +145,8 @@ class ABIType:
                 res += lentype.enc(len(value))
                 for array_value in value:
                     res += self.primitive_enc(array_value)
-            # else handle string, bytes
+            if self.type == "bytes":
+                return enc_bytes_dynamic(value)
         elif self.isarray:
 
             for array_index in range(self.count):
