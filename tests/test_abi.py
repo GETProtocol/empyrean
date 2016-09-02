@@ -153,6 +153,18 @@ class TestBytesType:
         # assert tohex(t.enc(b'ABC')) == \
         #     b'4142430000000000000000000000000000000000000000000000000000000000'
 
+    def test_encode_abi(self, one_to_thirtytwo):
+        t = "bytes{}".format(one_to_thirtytwo)
+
+        assert tohex(encode_abi([t], [b'\x00'])) == \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(encode_abi([t], [b'\x01'])) == \
+            b'0100000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(encode_abi([t], [b'\xff'])) == \
+            b'ff00000000000000000000000000000000000000000000000000000000000000'
+        assert tohex(encode_abi([t], [b'A'])) == \
+            b'4100000000000000000000000000000000000000000000000000000000000000'
+
     def test_larger_than_32(self):
         t = ABIType("bytes{}".format(one_to_thirtytwo))
         with pytest.raises(ValueError):
@@ -173,7 +185,6 @@ class TestBytesType:
     def test_bytes_is_dynamic(self):
         assert ABIType("bytes").isdynamic
 
-    # TODO: Implement dynamic bytes type
     def test_enc_bytes(self):
         t = ABIType("bytes")
         assert tohex(t.enc(b'Hello World How Are you?'
