@@ -177,7 +177,7 @@ class ABIType:
             return enc_uint256(value, self.bits)
         if self.type.startswith("int"):
             return enc_int256(value, self.bits)
-        if self.type == "bool":
+        if self.type.startswith("bool"):
             return enc_bool(value)
         if self.type.startswith("bytes"):
             # in the case of bytes size is bytes, not self.bits
@@ -192,8 +192,9 @@ class ABIType:
             return dec_uint256(data, self.bits)
         if self.type.startswith("int"):
             return dec_int256(data, self.bits)
-        if self.type == "bool":
+        if self.type.startswith("bool"):
             return dec_bool(data)
+
         raise TypeError("Unknown (decoding) type {}".format(self.type))
 
     def enc(self, value):
