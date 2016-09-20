@@ -399,7 +399,7 @@ class TestABIDecode:
         )
         assert decode_abi(["uint256", "uint256"], data) == [3, 32]
 
-    def test_decode_dynamic_uint256_array(self):
+    def test_decode_dynamic_uint256_dynamic_array(self):
         data = (
             b'0000000000000000000000000000000000000000000000000000000000000020'
             b'0000000000000000000000000000000000000000000000000000000000000003'
@@ -407,6 +407,13 @@ class TestABIDecode:
             b'000000000000000000000000000000000000000000000000000000000000001f'
             b'0000000000000000000000000000000000000000000000000000000000000026')
         assert decode_abi(["uint256[]"], data) == [[29, 31, 38]]
+
+    def test_decode_dynamic_uint256_static_array(self):
+        data = (
+            b'000000000000000000000000000000000000000000000000000000000000001d'
+            b'000000000000000000000000000000000000000000000000000000000000001f'
+            b'0000000000000000000000000000000000000000000000000000000000000026')
+        assert decode_abi(["uint256[3]"], data) == [[29, 31, 38]]
 
     def test_decode_single_int256_minus_one(self):
         data = \
@@ -428,7 +435,7 @@ class TestABIDecode:
             b'8000000000000000000000000000000000000000000000000000000000000000'
         assert decode_abi(["int256"], data) == [- (2 ** 255)]
 
-    def test_decode_int256_array(self):
+    def test_decode_int256_dynamic_array(self):
         data = (
             b'0000000000000000000000000000000000000000000000000000000000000020'
             b'0000000000000000000000000000000000000000000000000000000000000005'
@@ -441,6 +448,18 @@ class TestABIDecode:
         assert decode_abi(["int256[]"], data) == [
             [-2**255, -99999, -1, 99999, 2**255 - 1]]
 
+    def test_decode_int256_static_array(self):
+        pass
+        data = (
+            b'8000000000000000000000000000000000000000000000000000000000000000'
+            b'fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe7961'
+            b'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+            b'000000000000000000000000000000000000000000000000000000000001869f'
+            b'7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+        )
+        assert decode_abi(["int256[5]"], data) == [
+            [-2**255, -99999, -1, 99999, 2**255 - 1]]
+
     def test_decode_bool_true(self):
         data = \
             b'0000000000000000000000000000000000000000000000000000000000000001'
@@ -451,7 +470,7 @@ class TestABIDecode:
             b'0000000000000000000000000000000000000000000000000000000000000000'
         assert decode_abi(["bool"], data) == [False]
 
-    def test_decode_bool_array(self):
+    def test_decode_bool_dynamic_array(self):
         data = (
             b'0000000000000000000000000000000000000000000000000000000000000020'
             b'0000000000000000000000000000000000000000000000000000000000000003'
@@ -460,6 +479,52 @@ class TestABIDecode:
             b'0000000000000000000000000000000000000000000000000000000000000001'
         )
         assert decode_abi(["bool[]"], data) == [[True, False, True]]
+
+    def test_decode_bool_static_array(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        )
+        assert decode_abi(["bool[3]"], data) == [[True, False, True]]
+
+    # bytes
+
+    def test_decode_bytes_10(self):
+        data = b"48656c6c6f000000000000000000000000000000000000000000000000000000"
+        assert decode_abi(["bytes10"], data) == [b"Hello"]
+
+    def test_decode_bytes_dynamic(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+            b'0000000000000000000000000000000000000000000000000000000000000005'
+            b'48656c6c6f000000000000000000000000000000000000000000000000000000'
+        )
+        assert decode_abi(["bytes"], data) == [b"Hello"]
+
+    def test_decode_bytes_dynamic_array(self):
+        """ Not sure if bytes[] or even bytes[5] is supported at this moment """
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+            b'0000000000000000000000000000000000000000000000000000000000000005'
+            b'48656c6c6f000000000000000000000000000000000000000000000000000000'
+            b'576f726c64000000000000000000000000000000000000000000000000000000'
+            b'486f770000000000000000000000000000000000000000000000000000000000'
+            b'4172650000000000000000000000000000000000000000000000000000000000'
+            b'596f750000000000000000000000000000000000000000000000000000000000'
+        )
+        assert decode_abi(["bytes32[]"], data) == [
+            [b"Hello", b"World", b"How", b"Are", b"You"]]
+    # misc
+
+    def test_handle_wrong_signature(self):
+        """ treating fixed array data as dynamic may give very strange results """
+        data = (
+            b'000000000000000000000000000000000000000000000000000000000000001d'
+            b'000000000000000000000000000000000000000000000000000000000000001f'
+            b'0000000000000000000000000000000000000000000000000000000000000026')
+        with pytest.raises(ValueError):
+            decode_abi(["uint256[]"], data)
 
 
 class TestSignatureParser:

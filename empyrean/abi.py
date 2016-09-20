@@ -82,6 +82,7 @@ def enc_bytes_dynamic(b):
 def enc_bytes(b, size):
     """ size can be between 1 .. 32 or 0 (dynamic)"""
     if size == 0:  # dynamic string
+        # == enc_bytes_dynamic XXX
         return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
             b.ljust(multiple_of_32(len(b)), b'\x00')
 
@@ -91,6 +92,15 @@ def enc_bytes(b, size):
         raise ValueError("Byte string is larger than defined {}".format(size))
     remainder = 32 - len(b)
     return b + b'\x00' * remainder
+
+
+def dec_bytes(data, size=0):
+    if size == 0:
+        size = decode_int(data[:lentype.size()])
+        bytesdata = data[lentype.size():lentype.size() + multiple_of_32(size)]
+        return bytesdata.rstrip(b'\x00'), lentype.size() + multiple_of_32(size)
+
+    return data[:size].rstrip(b'\x00'), 32
 
 
 def parse_signature(signature):
@@ -194,6 +204,9 @@ class ABIType:
             return dec_int256(data, self.bits)
         if self.type.startswith("bool"):
             return dec_bool(data)
+        if self.type.startswith("bytes"):
+            # again, with bytes self.bits is actually number of bytes
+            return dec_bytes(data, self.bits)
 
         raise TypeError("Unknown (decoding) type {}".format(self.type))
 
@@ -228,15 +241,25 @@ class ABIType:
                 count = decode_int(data[:lentype.size()])
                 pos += lentype.size()
                 for i in range(count):
+                    if not data[pos:]:
+                        raise ValueError(
+                            "Ran out of data. Wrong signature perhaps?")
                     val, bytesread = self.primitive_dec(data[pos:])
                     res.append(val)
                     pos += bytesread
                 return res
+            if self.type == "bytes":
+                return dec_bytes(data)[0]
         elif self.isarray:
+            res = []
             for i in range(self.count):
-                val, bytesread = self.primitive_dec(data[:pos])
+                if not data[pos:]:
+                    raise ValueError(
+                        "Ran out of data. Wrong signature perhaps?")
+                val, bytesread = self.primitive_dec(data[pos:])
                 res.append(val)
                 pos += bytesread
+            return res
         else:
             return self.primitive_dec(data)[0]
 
