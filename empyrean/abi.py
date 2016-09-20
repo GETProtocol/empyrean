@@ -54,7 +54,7 @@ def dec_bool(data):
     return bool(decode_int(data[:32])), 32
 
 
-def enc_ufixed(i, bits, low, high):
+def enc_ufixed(i, bits, high, low):
 
     if bits <= 0 or bits > 256:
         raise ValueError(
@@ -71,6 +71,10 @@ def enc_ufixed(i, bits, low, high):
     float_point = i * 2 ** low
     fixed_point = int(float_point)
     return rlp.utils.int_to_big_endian(fixed_point).rjust(32, b'\x00')
+
+
+def dec_ufixed(data, bits, high, low):
+    return decode_int(data[:32]) / 2 ** low, 32
 
 
 def enc_bytes_dynamic(b):
@@ -167,7 +171,7 @@ class ABIType:
             return int(groups[0])
         return 0
 
-    def getlowhigh(self):
+    def gethighlow(self):
         spec = re.search("(\d+)x?(\d+)?", self.type)
         if spec:
             groups = spec.groups()
@@ -193,8 +197,9 @@ class ABIType:
             # in the case of bytes size is bytes, not self.bits
             return enc_bytes(value, self.bits)
         if self.type.startswith("ufixed"):
-            low, high = self.getlowhigh()
-            return enc_ufixed(value, self.bits, low, high)
+            high, low = self.gethighlow()
+            return enc_ufixed(value, self.bits, high, low)
+        # TODO: string, fixed
         raise TypeError("Unknown type {}".format(self.type))
 
     def primitive_dec(self, data):
@@ -207,6 +212,10 @@ class ABIType:
         if self.type.startswith("bytes"):
             # again, with bytes self.bits is actually number of bytes
             return dec_bytes(data, self.bits)
+        if self.type.startswith("ufixed"):
+            high, low = self.gethighlow()
+            return dec_ufixed(data, self.bits, high, low)
+        # TODO: string, fixed
 
         raise TypeError("Unknown (decoding) type {}".format(self.type))
 
