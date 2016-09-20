@@ -537,6 +537,40 @@ class TestABIDecode:
             b'0000000000000009fd70a3d70a3d800000000000000000000000000000000000'
         )
         assert decode_abi(["ufixed64x192[]"], data) == [[1.333333, 0.5, 9.99]]
+    # address
+
+    def test_single_address(self):
+        assert decode_abi(
+            ["address"],
+            b'000000000000000000000000901ecd3b3322b2e5a10d8cd86924c5209039ca7b'
+        ) == [0x901ecd3b3322b2e5a10d8cd86924c5209039ca7b]
+
+    def test_address_dynamic_array(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+            b'0000000000000000000000000000000000000000000000000000000000000003'
+            b'00000000000000000000000065b8e2a5ff60a33b140ce88f15041335dc8c42e5'
+            b'0000000000000000000000003f1dd9e8c35196156d875b6162c3a6f92588c315'
+            b'00000000000000000000000065d2ee62332f292cbad83bc92ae4799d69371fa5'
+        )
+        assert decode_abi(["address[]"], data) == [[
+            0x65b8e2a5ff60a33b140ce88f15041335dc8c42e5,
+            0x3f1dd9e8c35196156d875b6162c3a6f92588c315,
+            0x65d2ee62332f292cbad83bc92ae4799d69371fa5
+        ]]
+
+    def test_address_static_array(self):
+        data = (
+            b'00000000000000000000000065b8e2a5ff60a33b140ce88f15041335dc8c42e5'
+            b'0000000000000000000000003f1dd9e8c35196156d875b6162c3a6f92588c315'
+            b'00000000000000000000000065d2ee62332f292cbad83bc92ae4799d69371fa5'
+        )
+        assert decode_abi(["address[3]"], data) == [[
+            0x65b8e2a5ff60a33b140ce88f15041335dc8c42e5,
+            0x3f1dd9e8c35196156d875b6162c3a6f92588c315,
+            0x65d2ee62332f292cbad83bc92ae4799d69371fa5
+        ]]
+
     # misc
 
     def test_handle_wrong_signature(self):

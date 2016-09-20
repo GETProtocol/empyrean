@@ -176,8 +176,7 @@ class ABIType:
         return self.count * 32
 
     def primitive_enc(self, value):
-        # XXX tests!
-        if self.type == "address":
+        if self.type.startswith("address"):
             return enc_uint256(value, 160)
 
         if self.type.startswith("uint"):
@@ -196,6 +195,9 @@ class ABIType:
         raise TypeError("Unknown type {}".format(self.type))
 
     def primitive_dec(self, data):
+        if self.type.startswith("address"):
+            return dec_uint256(data, 160)
+
         if self.type.startswith("uint"):
             return dec_uint256(data, self.bits)
         if self.type.startswith("int"):
@@ -332,9 +334,11 @@ def decode_abi(signature, data):
     """
         Decode the ("abi serialized) result data from a call() invocation
     """
+    if data.startswith(b"0x"):
+        data = data[2:]
+    data = binascii.unhexlify(data)
     decoded = []
 
-    data = binascii.unhexlify(data)
 
     offset = 0
     for type in signature:
