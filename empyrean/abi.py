@@ -77,6 +77,15 @@ def dec_ufixed(data, bits, high, low):
     return decode_int(data[:32]) / 2 ** low, 32
 
 
+def enc_string(b, size=0):
+    return enc_bytes(b.encode('utf8'), size)
+
+
+def dec_string(data, size=0):
+    bytes, len = dec_bytes(data, size)
+    return bytes.decode('utf8'), size
+
+
 def enc_bytes(b, size=0):
     """ size can be between 1 .. 32 or 0 (dynamic)"""
     if size == 0:  # dynamic string
@@ -114,20 +123,20 @@ def parse_signature(signature):
     return method, args
 
 
-def enc_string(s):
-    """ a variable length string """
+# def enc_string(s):
+#     """ a variable length string """
 
-    slen = len(s)
-    static = b''
-    dynamic = b''
+#     slen = len(s)
+#     static = b''
+#     dynamic = b''
 
-    # 32 being the len of its own encoding
-    static = rlp.utils.int_to_big_endian(32).rjust(32, b'\x00')
-    lenpart = rlp.utils.int_to_big_endian(slen).rjust(32, b'\x00')
-    stringpart = s.encode('utf8').ljust(multiple_of_32(slen), b'\x00')
+#     # 32 being the len of its own encoding
+#     static = rlp.utils.int_to_big_endian(32).rjust(32, b'\x00')
+#     lenpart = rlp.utils.int_to_big_endian(slen).rjust(32, b'\x00')
+#     stringpart = s.encode('utf8').ljust(multiple_of_32(slen), b'\x00')
 
-    dynamic = lenpart + stringpart
-    return static + dynamic
+#     dynamic = lenpart + stringpart
+#     return static + dynamic
 
 
 def enc_method(signature):
@@ -188,6 +197,9 @@ class ABIType:
         if self.type.startswith("bytes"):
             # in the case of bytes size is bytes, not self.bits
             return enc_bytes(value, self.bits)
+        if self.type.startswith("string"):
+            # in the case of string size is bytes, not self.bits
+            return enc_string(value, self.bits)
         if self.type.startswith("ufixed"):
             high, low = self.gethighlow()
             return enc_ufixed(value, self.bits, high, low)
@@ -224,7 +236,8 @@ class ABIType:
                     res += self.primitive_enc(array_value)
             if self.type == "bytes":
                 return enc_bytes(value)
-            # TODO: string
+            if self.type == "string":
+                return enc_string(value)
         elif self.isarray:
 
             for array_index in range(self.count):
@@ -254,6 +267,8 @@ class ABIType:
                 return res
             if self.type == "bytes":
                 return dec_bytes(data)[0]
+            if self.type == "string":
+                return dec_string(data)[0]
         elif self.isarray:
             res = []
             for i in range(self.count):
@@ -338,7 +353,6 @@ def decode_abi(signature, data):
         data = data[2:]
     data = binascii.unhexlify(data)
     decoded = []
-
 
     offset = 0
     for type in signature:
