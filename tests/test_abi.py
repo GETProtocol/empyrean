@@ -441,6 +441,16 @@ class TestABIDecode:
         assert decode_abi(["int256[]"], data) == [
             [-2**255, -99999, -1, 99999, 2**255 - 1]]
 
+    def test_decode_bool_true(self):
+        data = \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        assert decode_abi(["bool"], data) == [True]
+
+    def test_decode_bool_false(self):
+        data = \
+            b'0000000000000000000000000000000000000000000000000000000000000000'
+        assert decode_abi(["bool"], data) == [False]
+
 
 class TestSignatureParser:
 

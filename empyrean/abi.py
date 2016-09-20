@@ -48,6 +48,12 @@ def enc_bool(i):
     return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
 
 
+def dec_bool(data):
+    """ strictly speaking this will also return \xff * 32 as bool
+        though the specification only mentions 1 as true value """
+    return bool(decode_int(data[:32])), 32
+
+
 def enc_ufixed(i, bits, low, high):
 
     if bits <= 0 or bits > 256:
@@ -186,6 +192,8 @@ class ABIType:
             return dec_uint256(data, self.bits)
         if self.type.startswith("int"):
             return dec_int256(data, self.bits)
+        if self.type == "bool":
+            return dec_bool(data)
         raise TypeError("Unknown (decoding) type {}".format(self.type))
 
     def enc(self, value):
