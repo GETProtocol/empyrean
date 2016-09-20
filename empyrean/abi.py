@@ -7,6 +7,10 @@ import math
 # utils
 
 
+def decode_int(data):
+    return rlp.sedes.big_endian_int.deserialize(data.lstrip(b"\x00"))
+
+
 def multiple_of_32(i):
     return (math.ceil(i / 32)) * 32
 
@@ -19,6 +23,18 @@ def enc_uint256(i, bits=256):
     if i < 0 or i >= 2**bits:
         raise ValueError("Value out of range for uint{}: {}".format(bits, i))
     return rlp.utils.int_to_big_endian(i).rjust(32, b'\x00')
+
+
+def dec_uint256(data, bits=256):
+    # force into number of bits?
+    return decode_int(data[:32]), 32
+
+
+def dec_int256(data, bits=256):
+    unsigned = decode_int(data[:32])
+    if unsigned >= 2 ** (bits - 1):
+        return unsigned - 2 ** bits, 32
+    return unsigned, 32
 
 
 def enc_int256(i, bits=256):
@@ -165,6 +181,13 @@ class ABIType:
             return enc_ufixed(value, self.bits, low, high)
         raise TypeError("Unknown type {}".format(self.type))
 
+    def primitive_dec(self, data):
+        if self.type.startswith("uint"):
+            return dec_uint256(data, self.bits)
+        if self.type.startswith("int"):
+            return dec_int256(data, self.bits)
+        raise TypeError("Unknown (decoding) type {}".format(self.type))
+
     def enc(self, value):
         res = b""
 
@@ -175,6 +198,7 @@ class ABIType:
                     res += self.primitive_enc(array_value)
             if self.type == "bytes":
                 return enc_bytes_dynamic(value)
+            # TODO: string
         elif self.isarray:
 
             for array_index in range(self.count):
@@ -183,6 +207,30 @@ class ABIType:
             res += self.primitive_enc(value)
 
         return res
+
+    def dec(self, data):
+        """ fetch value from data. In the case of dynamic types, data
+            will also hold the rest of the tail since the called won't
+            know where it ends """
+        pos = 0
+        if self.isdynamic:
+            if self.isarray:
+                res = []
+                count = decode_int(data[:lentype.size()])
+                pos += lentype.size()
+                for i in range(count):
+                    val, bytesread = self.primitive_dec(data[pos:])
+                    res.append(val)
+                    pos += bytesread
+                return res
+        elif self.isarray:
+            for i in range(self.count):
+                val, bytesread = self.primitive_dec(data[:pos])
+                res.append(val)
+                pos += bytesread
+        else:
+            return self.primitive_dec(data)[0]
+
 
 lentype = ABIType("uint256")
 
@@ -222,6 +270,7 @@ def encode_abi(signature, args):
     tailsize = 0
 
     assert len(signature) == len(args)
+
     for type, arg in zip(signature, args):
         type = ABIType(type)
         encoded = type.enc(arg)
@@ -233,6 +282,7 @@ def encode_abi(signature, args):
         else:
             headsize += type.size()
             parts.append(StaticArg(encoded))
+
     return b"".join(a.head(headsize) for a in parts) + \
            b"".join(a.tail() for a in parts)
 
@@ -243,27 +293,25 @@ def build_payload(signature, *args):
     args = encode_abi(a, args)
     return tohex(method + args)
 
-from rlp.sedes import big_endian_int
 
-
-def decode_result(signature, data):
+def decode_abi(signature, data):
     """
-        Er is een head en een tail. In de head zitten de static types
-        en de offsets van de dynamic types
+        Decode the ("abi serialized) result data from a call() invocation
     """
     decoded = []
 
-    pos = 0
+    data = binascii.unhexlify(data)
+
+    offset = 0
     for type in signature:
         type = ABIType(type)
-        if not type.isdynamic:
-            start_position = big_endian_int.deserialize(data[pos:pos + 32])
-            pos += 32
+        if type.isdynamic:
+            start = decode_int(data[offset:offset + 32])
+            decoded.append(type.dec(data[start:]))
+            offset += lentype.size()
         else:
-            val = data[pos:pos + type.size]
+            val = data[offset:offset + type.size()]
             decoded.append(type.dec(val))
-            # pos += type.size ??
-    return decoded
+            offset += type.size()
 
-# print(build_payload("multiply(uint256)", 6))
-# print(tohex(enc_string("Hello, world!")))
+    return decoded

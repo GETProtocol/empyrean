@@ -16,6 +16,7 @@ from empyrean.abi import enc_method
 from empyrean.abi import parse_signature
 from empyrean.abi import encode_abi
 from empyrean.abi import ABIType
+from empyrean.abi import decode_abi
 
 # inspiration:
 # https://github.com/ethereum/pyethereum/blob/develop/ethereum/tests/test_abi.py
@@ -344,7 +345,8 @@ class TestABIEncode:
             b'00000000000000000000000000000045')
 
     def test_multiple_dynamics(self):
-        res = tohex(encode_abi(["uint256[]", "uint256[]", "uint256[]"], [[1], [1,2], [1,2,3]]))
+        res = tohex(encode_abi(
+            ["uint256[]", "uint256[]", "uint256[]"], [[1], [1, 2], [1, 2, 3]]))
         assert res == (
             b'0000000000000000000000000000000000000000000000000000000000000060'
             b'00000000000000000000000000000000000000000000000000000000000000a0'
@@ -376,6 +378,68 @@ class TestABIEncode:
             b'48656c6c6f2c20776f726c642100000000000000000000000000000000000000'
 
         )
+
+
+class TestABIDecode:
+
+    def test_decode_single_uint256(self):
+        data = \
+            b'0000000000000000000000000000000000000000000000000000000000000003'
+        assert decode_abi(["uint256"], data) == [3]
+
+    def test_decode_single_uint256_max(self):
+        data = \
+            b'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+        assert decode_abi(["uint256"], data) == [2 ** 256 - 1]
+
+    def test_decode_double_uint256(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000003'
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+        )
+        assert decode_abi(["uint256", "uint256"], data) == [3, 32]
+
+    def test_decode_dynamic_uint256_array(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+            b'0000000000000000000000000000000000000000000000000000000000000003'
+            b'000000000000000000000000000000000000000000000000000000000000001d'
+            b'000000000000000000000000000000000000000000000000000000000000001f'
+            b'0000000000000000000000000000000000000000000000000000000000000026')
+        assert decode_abi(["uint256[]"], data) == [[29, 31, 38]]
+
+    def test_decode_single_int256_minus_one(self):
+        data = \
+            b'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+        assert decode_abi(["int256"], data) == [-1]
+
+    def test_decode_single_int256_plus_one(self):
+        data = \
+            b'0000000000000000000000000000000000000000000000000000000000000001'
+        assert decode_abi(["int256"], data) == [1]
+
+    def test_decode_single_int256_max_pos(self):
+        data = \
+            b"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        assert decode_abi(["int256"], data) == [2 ** 255 - 1]
+
+    def test_decode_single_int256_max_neg(self):
+        data = \
+            b'8000000000000000000000000000000000000000000000000000000000000000'
+        assert decode_abi(["int256"], data) == [- (2 ** 255)]
+
+    def test_decode_int256_array(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+            b'0000000000000000000000000000000000000000000000000000000000000005'
+            b'8000000000000000000000000000000000000000000000000000000000000000'
+            b'fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe7961'
+            b'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+            b'000000000000000000000000000000000000000000000000000000000001869f'
+            b'7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+        )
+        assert decode_abi(["int256[]"], data) == [
+            [-2**255, -99999, -1, 99999, 2**255 - 1]]
 
 
 class TestSignatureParser:
