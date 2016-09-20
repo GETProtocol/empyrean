@@ -123,22 +123,6 @@ def parse_signature(signature):
     return method, args
 
 
-# def enc_string(s):
-#     """ a variable length string """
-
-#     slen = len(s)
-#     static = b''
-#     dynamic = b''
-
-#     # 32 being the len of its own encoding
-#     static = rlp.utils.int_to_big_endian(32).rjust(32, b'\x00')
-#     lenpart = rlp.utils.int_to_big_endian(slen).rjust(32, b'\x00')
-#     stringpart = s.encode('utf8').ljust(multiple_of_32(slen), b'\x00')
-
-#     dynamic = lenpart + stringpart
-#     return static + dynamic
-
-
 def enc_method(signature):
     # signature must be "canonical", e.g. int[256] -> uint256
     methodhash = sha3.keccak_256(signature.encode("ascii")).digest()
@@ -219,6 +203,9 @@ class ABIType:
         if self.type.startswith("bytes"):
             # again, with bytes self.bits is actually number of bytes
             return dec_bytes(data, self.bits)
+        if self.type.startswith("string"):
+            # again, with string self.bits is actually number of bytes
+            return dec_string(data, self.bits)
         if self.type.startswith("ufixed"):
             high, low = self.gethighlow()
             return dec_ufixed(data, self.bits, high, low)
