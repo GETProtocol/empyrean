@@ -35,7 +35,6 @@ class API(object):
                     id=1)
 
         res = self.connector.invoke(data)
-        # print("RES", res)
         return res
 
     def call_ns(self, ns, command, *args):

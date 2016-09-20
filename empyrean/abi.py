@@ -108,12 +108,6 @@ def enc_method(signature):
     return method
 
 
-def build_payload(signature, *args):
-    method = enc_method(signature)
-    args = enc_uint256(args[0])
-    return tohex(method + args)
-
-
 class ABIType:
 
     def __init__(self, type):
@@ -153,6 +147,10 @@ class ABIType:
         return self.count * 32
 
     def primitive_enc(self, value):
+        # XXX tests!
+        if self.type == "address":
+            return enc_uint256(value, 160)
+
         if self.type.startswith("uint"):
             return enc_uint256(value, self.bits)
         if self.type.startswith("int"):
@@ -189,12 +187,30 @@ class ABIType:
 lentype = ABIType("uint256")
 
 
+class DynamicHead:
+
+    def __init__(self, val, tailoffset):
+        self.tailoffset = tailoffset
+
+    def __call__(self, headsize):
+        return lentype.enc(headsize + self.tailoffset)
+
+
+class StaticHead:
+
+    def __init__(self, val):
+        self.val = val
+
+    def __call__(self, headsize):
+        return self.val
+
+
 def encode_abi(signature, args):
     """ Encode a number of arguments given a specific signature.
 
         E.g. encode_abi(["uint32[]"], [[6, 69]])
     """
-    head = b""
+    head = []
     tail = b""
     headsize = 0
 
@@ -204,13 +220,41 @@ def encode_abi(signature, args):
 
         if type.isdynamic:
             headsize += 32
-            head += lentype.enc(headsize + len(tail))
+            head.append(DynamicHead(type.enc(arg), len(tail)))
             tail += type.enc(arg)
         else:
             headsize += type.size()
-            head += type.enc(arg)
-    return head + tail
+            head.append(StaticHead(type.enc(arg)))
+    return b"".join(h(headsize) for h in head) + tail
 
+
+def build_payload(signature, *args):
+    m, a = parse_signature(signature)
+    method = enc_method(signature)
+    args = encode_abi(a, args)
+    return tohex(method + args)
+
+from rlp.sedes import big_endian_int
+
+
+def decode_result(signature, data):
+    """
+        Er is een head en een tail. In de head zitten de static types
+        en de offsets van de dynamic types
+    """
+    decoded = []
+
+    pos = 0
+    for type in signature:
+        type = ABIType(type)
+        if not type.isdynamic:
+            start_position = big_endian_int.deserialize(data[pos:pos + 32])
+            pos += 32
+        else:
+            val = data[pos:pos + type.size]
+            decoded.append(type.dec(val))
+            # pos += type.size ??
+    return decoded
 
 # print(build_payload("multiply(uint256)", 6))
 # print(tohex(enc_string("Hello, world!")))
