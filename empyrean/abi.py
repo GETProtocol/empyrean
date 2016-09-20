@@ -77,16 +77,9 @@ def dec_ufixed(data, bits, high, low):
     return decode_int(data[:32]) / 2 ** low, 32
 
 
-def enc_bytes_dynamic(b):
-    """ dynamic bytes string """
-    return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
-        b.ljust(multiple_of_32(len(b)), b'\x00')
-
-
-def enc_bytes(b, size):
+def enc_bytes(b, size=0):
     """ size can be between 1 .. 32 or 0 (dynamic)"""
     if size == 0:  # dynamic string
-        # == enc_bytes_dynamic XXX
         return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
             b.ljust(multiple_of_32(len(b)), b'\x00')
 
@@ -228,7 +221,7 @@ class ABIType:
                 for array_value in value:
                     res += self.primitive_enc(array_value)
             if self.type == "bytes":
-                return enc_bytes_dynamic(value)
+                return enc_bytes(value)
             # TODO: string
         elif self.isarray:
 
