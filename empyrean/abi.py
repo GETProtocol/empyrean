@@ -187,21 +187,28 @@ class ABIType:
 lentype = ABIType("uint256")
 
 
-class DynamicHead:
-
-    def __init__(self, val, tailoffset):
-        self.tailoffset = tailoffset
-
-    def __call__(self, headsize):
-        return lentype.enc(headsize + self.tailoffset)
-
-
-class StaticHead:
+class StaticArg:
 
     def __init__(self, val):
         self.val = val
 
-    def __call__(self, headsize):
+    def head(self, headsize):
+        return self.val
+
+    def tail(self):
+        return b''
+
+
+class DynamicArg(StaticArg):
+
+    def __init__(self, val, tailoffset):
+        super().__init__(val)
+        self.tailoffset = tailoffset
+
+    def head(self, headsize):
+        return lentype.enc(headsize + self.tailoffset)
+
+    def tail(self):
         return self.val
 
 
@@ -210,22 +217,24 @@ def encode_abi(signature, args):
 
         E.g. encode_abi(["uint32[]"], [[6, 69]])
     """
-    head = []
-    tail = b""
+    parts = []
     headsize = 0
+    tailsize = 0
 
     assert len(signature) == len(args)
     for type, arg in zip(signature, args):
         type = ABIType(type)
+        encoded = type.enc(arg)
 
         if type.isdynamic:
             headsize += 32
-            head.append(DynamicHead(type.enc(arg), len(tail)))
-            tail += type.enc(arg)
+            parts.append(DynamicArg(encoded, tailsize))
+            tailsize += len(encoded)
         else:
             headsize += type.size()
-            head.append(StaticHead(type.enc(arg)))
-    return b"".join(h(headsize) for h in head) + tail
+            parts.append(StaticArg(encoded))
+    return b"".join(a.head(headsize) for a in parts) + \
+           b"".join(a.tail() for a in parts)
 
 
 def build_payload(signature, *args):
