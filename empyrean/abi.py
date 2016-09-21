@@ -20,10 +20,25 @@ def tohex(b):
 
 
 class BaseType:
+    isdynamic = False
 
     def __init__(self, type):
         self.type = type
         self.bits = self.getbits()
+        self.count = 1
+        self.isarray = False
+
+        if '[' in self.type:
+            self.isarray = True
+            _, scount, _ = re.split(r'[\[\]]', type)
+            if scount == '':
+                self.count = 0
+                self.isdynamic = True
+            else:
+                self.count = int(scount)
+
+    def size(self):
+        return self.count * 32
 
     def getbits(self):
         spec = re.search("(\d+)x?(\d+)?", self.type)
@@ -33,6 +48,62 @@ class BaseType:
                 return int(groups[0]) + int(groups[1])
             return int(groups[0])
         return 0
+
+    def enc_complex(self, value):
+        res = b""
+
+        if self.isdynamic:
+            if self.isarray:
+                res += lentype.enc(len(value))
+                for array_value in value:
+                    res += self.enc(array_value)
+            if self.type == "bytes":
+                return self.enc(value)
+            if self.type == "string":
+                return self.enc(value)
+        elif self.isarray:
+
+            for array_index in range(self.count):
+                res += self.enc(value[array_index])
+        else:
+            res += self.enc(value)
+
+        return res
+
+    def dec_complex(self, data):
+        """ fetch value from data. In the case of dynamic types, data
+            will also hold the rest of the tail since the called won't
+            know where it ends """
+        pos = 0
+        if self.isdynamic:
+            if self.isarray:
+                res = []
+                count = decode_int(data[:lentype.size()])
+                pos += lentype.size()
+                for i in range(count):
+                    if not data[pos:]:
+                        raise ValueError(
+                            "Ran out of data. Wrong signature perhaps?")
+                    val, bytesread = self.dec(data[pos:])
+                    res.append(val)
+                    pos += bytesread
+                return res
+            if self.type == "bytes":
+                return self.dec(data)[0]
+            if self.type == "string":
+                return self.dec(data)[0]
+        elif self.isarray:
+            res = []
+            for i in range(self.count):
+                if not data[pos:]:
+                    raise ValueError(
+                        "Ran out of data. Wrong signature perhaps?")
+                val, bytesread = self.dec(data[pos:])
+                res.append(val)
+                pos += bytesread
+            return res
+        else:
+            return self.dec(data)[0]
 
 
 class UIntType(BaseType):
@@ -138,30 +209,32 @@ class BytesType(BaseType):
 
     def __init__(self, type):
         super().__init__(type)
-        self.size = self.bits
+        self._size = self.bits
+        if self._size == 0:
+            self.isdynamic = True
 
     def enc(self, b):
         """ size can be between 1 .. 32 or 0 (dynamic)"""
-        if self.size == 0:  # dynamic string
+        if self._size == 0:  # dynamic string
             return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
                 b.ljust(multiple_of_32(len(b)), b'\x00')
 
         if len(b) > 32:
             raise ValueError("Byte string is longer than 32 bytes")
-        if len(b) > self.size:
+        if len(b) > self._size:
             raise ValueError(
-                "Byte string is larger than defined {}".format(self.size))
+                "Byte string is larger than defined {}".format(self._size))
         remainder = 32 - len(b)
         return b + b'\x00' * remainder
 
     def dec(self, data):
-        if self.size == 0:
-            self.size = decode_int(data[:lentype.size()])
+        if self._size == 0:
+            self._size = decode_int(data[:lentype.size()])
             bytesdata = data[lentype.size():lentype.size() +
-                             multiple_of_32(self.size)]
-            return bytesdata.rstrip(b'\x00'), lentype.size() + multiple_of_32(self.size)
+                             multiple_of_32(self._size)]
+            return bytesdata.rstrip(b'\x00'), lentype.size() + multiple_of_32(self._size)
 
-        return data[:self.size].rstrip(b'\x00'), 32
+        return data[:self._size].rstrip(b'\x00'), 32
 
 
 class StringType(BytesType):
@@ -213,88 +286,14 @@ def enc_method(signature):
     return method
 
 
-class ABIType:
+def get_typedecoder(type):
+    basetype = re.match("^([a-z]+)(\d+)?", type).group(1)
+    decoder = decoders.get(basetype)(type)
+    if decoder is None:
+        raise TypeError("Unknown (decoding) type {}".format(type))
+    return decoder
 
-    def __init__(self, type):
-        self.type = type
-        self.count = 1
-        self.isdynamic = self.type in ('string', 'bytes')
-        self.isarray = False
-        self.basetype = re.match("^([a-z]+)(\d+)?", type).group(1)
-        self.decoder = decoders.get(self.basetype)(type)
-        if self.decoder is None:
-            raise TypeError("Unknown (decoding) type {}".format(self.type))
-
-        if '[' in self.type:
-            self.isarray = True
-            _, scount, _ = re.split(r'[\[\]]', type)
-            if scount == '':
-                self.count = 0
-                self.isdynamic = True
-            else:
-                self.count = int(scount)
-
-    def size(self):
-        return self.count * 32
-
-    def enc(self, value):
-        res = b""
-
-        if self.isdynamic:
-            if self.isarray:
-                res += lentype.enc(len(value))
-                for array_value in value:
-                    res += self.decoder.enc(array_value)
-            if self.type == "bytes":
-                return self.decoder.enc(value)
-            if self.type == "string":
-                return self.decoder.enc(value)
-        elif self.isarray:
-
-            for array_index in range(self.count):
-                res += self.decoder.enc(value[array_index])
-        else:
-            res += self.decoder.enc(value)
-
-        return res
-
-    def dec(self, data):
-        """ fetch value from data. In the case of dynamic types, data
-            will also hold the rest of the tail since the called won't
-            know where it ends """
-        pos = 0
-        if self.isdynamic:
-            if self.isarray:
-                res = []
-                count = decode_int(data[:lentype.size()])
-                pos += lentype.size()
-                for i in range(count):
-                    if not data[pos:]:
-                        raise ValueError(
-                            "Ran out of data. Wrong signature perhaps?")
-                    val, bytesread = self.decoder.dec(data[pos:])
-                    res.append(val)
-                    pos += bytesread
-                return res
-            if self.type == "bytes":
-                return self.decoder.dec(data)[0]
-            if self.type == "string":
-                return self.decoder.dec(data)[0]
-        elif self.isarray:
-            res = []
-            for i in range(self.count):
-                if not data[pos:]:
-                    raise ValueError(
-                        "Ran out of data. Wrong signature perhaps?")
-                val, bytesread = self.decoder.dec(data[pos:])
-                res.append(val)
-                pos += bytesread
-            return res
-        else:
-            return self.decoder.dec(data)[0]
-
-
-lentype = ABIType("uint256")
+lentype = UIntType("uint256")
 
 
 class StaticArg:
@@ -334,8 +333,8 @@ def encode_abi(signature, args):
     assert len(signature) == len(args)
 
     for type, arg in zip(signature, args):
-        type = ABIType(type)
-        encoded = type.enc(arg)
+        type = get_typedecoder(type)
+        encoded = type.enc_complex(arg)
 
         if type.isdynamic:
             headsize += 32
@@ -367,14 +366,14 @@ def decode_abi(signature, data):
 
     offset = 0
     for type in signature:
-        type = ABIType(type)
+        type = get_typedecoder(type)
         if type.isdynamic:
             start = decode_int(data[offset:offset + 32])
-            decoded.append(type.dec(data[start:]))
+            decoded.append(type.dec_complex(data[start:]))
             offset += lentype.size()
         else:
             val = data[offset:offset + type.size()]
-            decoded.append(type.dec(val))
+            decoded.append(type.dec_complex(val))
             offset += type.size()
 
     return decoded
