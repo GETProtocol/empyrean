@@ -333,13 +333,6 @@ def encode_abi(signature, args):
            b"".join(a.tail() for a in parts)
 
 
-def build_payload(signature, *args):
-    m, a = parse_signature(signature)
-    method = enc_method(signature)
-    args = encode_abi(a, args)
-    return tohex(method + args)
-
-
 def decode_abi(signature, data):
     """
         Decode the ("abi serialized) result data from a call() invocation
@@ -362,3 +355,10 @@ def decode_abi(signature, data):
             offset += type.size()
 
     return decoded
+
+def build_payload(signature, *args):
+    m, a = parse_signature(signature)
+    method = enc_method(signature)
+    args = encode_abi(a, args)
+    return tohex(method + args)
+
