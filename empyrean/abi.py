@@ -253,7 +253,7 @@ class AddressType(UIntType):
         super().__init__(type)
         self.bits = 160
 
-decoders = dict(
+abitypes = dict(
     int=IntType,
     uint=UIntType,
     fixed=FixedType,
@@ -286,12 +286,12 @@ def enc_method(signature):
     return method
 
 
-def get_typedecoder(type):
+def get_type(type):
     basetype = re.match("^([a-z]+)(\d+)?", type).group(1)
-    decoder = decoders.get(basetype)(type)
-    if decoder is None:
-        raise TypeError("Unknown (decoding) type {}".format(type))
-    return decoder
+    t = abitypes.get(basetype)(type)
+    if t is None:
+        raise TypeError("Unknown type {}".format(type))
+    return t
 
 lentype = UIntType("uint256")
 
@@ -333,7 +333,7 @@ def encode_abi(signature, args):
     assert len(signature) == len(args)
 
     for type, arg in zip(signature, args):
-        type = get_typedecoder(type)
+        type = get_type(type)
         encoded = type.enc_complex(arg)
 
         if type.isdynamic:
@@ -366,7 +366,7 @@ def decode_abi(signature, data):
 
     offset = 0
     for type in signature:
-        type = get_typedecoder(type)
+        type = get_type(type)
         if type.isdynamic:
             start = decode_int(data[offset:offset + 32])
             decoded.append(type.dec_complex(data[start:]))
