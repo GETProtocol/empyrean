@@ -673,7 +673,8 @@ class TestABIDecode:
             b'fffffffffffffffffffffffffffffffffffffffffffffb2d6ea4a8c154c00000'
             b'7fffffffffffffffffffffffffffffffffffffffffffffff0000000000000000'
         )
-        assert decode_abi(["fixed192x64[3]"], data) == [[-2.0**191, -1234.5678, 2.0**191-1]]
+        assert decode_abi(["fixed192x64[3]"], data) == [
+            [-2.0**191, -1234.5678, 2.0**191 - 1]]
 
     def test_fixed192x64_dynamic_array(self):
         data = (
@@ -683,7 +684,8 @@ class TestABIDecode:
             b'fffffffffffffffffffffffffffffffffffffffffffffb2d6ea4a8c154c00000'
             b'7fffffffffffffffffffffffffffffffffffffffffffffff0000000000000000'
         )
-        assert decode_abi(["fixed192x64[]"], data) == [[-2.0**191, -1234.5678, 2.0**191-1]]
+        assert decode_abi(["fixed192x64[]"], data) == [
+            [-2.0**191, -1234.5678, 2.0**191 - 1]]
     # address
 
     def test_single_address(self):
