@@ -51,7 +51,9 @@ class BaseType:
 
     def enc_complex(self, value):
         """
-            encode a complex structure
+            encode a complex structure. This basically means
+            handling (dynamic) arrays. non-array dynamic types
+            to their own size encoding in their enc() method
         """
         res = b""
 
