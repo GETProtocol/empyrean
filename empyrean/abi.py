@@ -278,6 +278,8 @@ def get_type(type):
         raise TypeError("Unknown type {}".format(type))
     return t
 
+# The ABI type implementation recursively depends on one of
+# its child classes through the lentype.
 lentype = UIntType("uint256")
 
 
@@ -335,7 +337,7 @@ def encode_abi(signature, args):
 
 def decode_abi(signature, data):
     """
-        Decode the ("abi serialized) result data from a call() invocation
+        Decode the (abi serialized) result data from a call() invocation
     """
     if data.startswith(b"0x"):
         data = data[2:]
