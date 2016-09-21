@@ -135,6 +135,7 @@ class UFixedType(FixedType):
 
 
 class BytesType(BaseType):
+
     def __init__(self, type):
         super().__init__(type)
         self.size = self.bits
@@ -172,7 +173,9 @@ class StringType(BytesType):
         bytes, len = super().dec(data)
         return bytes.decode('utf8'), len
 
+
 class AddressType(UIntType):
+
     def __init__(self, type):
         super().__init__(type)
         self.bits = 160
@@ -219,6 +222,8 @@ class ABIType:
         self.isarray = False
         self.basetype = re.match("^([a-z]+)(\d+)?", type).group(1)
         self.decoder = decoders.get(self.basetype)(type)
+        if self.decoder is None:
+            raise TypeError("Unknown (decoding) type {}".format(self.type))
 
         if '[' in self.type:
             self.isarray = True
@@ -232,51 +237,6 @@ class ABIType:
     def size(self):
         return self.count * 32
 
-    def primitive_enc(self, value):
-        if self.type.startswith("address"):
-            return self.decoder.enc(value, 160)
-
-        if self.type.startswith("uint"):
-            return self.decoder.enc(value)
-        if self.type.startswith("int"):
-            return self.decoder.enc(value)
-        if self.type.startswith("bool"):
-            return self.decoder.enc(value)
-        if self.type.startswith("bytes"):
-            # in the case of bytes size is bytes, not self.bits
-            return self.decoder.enc(value)
-        if self.type.startswith("string"):
-            # in the case of string size is bytes, not self.bits
-            return self.decoder.enc(value)
-        if self.type.startswith("ufixed"):
-            return self.decoder.enc(value)
-        if self.type.startswith("fixed"):
-            return self.decoder.enc(value)
-        raise TypeError("Unknown type {}".format(self.type))
-
-    def primitive_dec(self, data):
-        if self.type.startswith("address"):
-            return self.decoder.dec(data)
-
-        if self.type.startswith("uint"):
-            return self.decoder.dec(data)
-        if self.type.startswith("int"):
-            return self.decoder.dec(data)
-        if self.type.startswith("bool"):
-            return self.decoder.dec(data)
-        if self.type.startswith("bytes"):
-            # again, with bytes self.bits is actually number of bytes
-            return self.decoder.dec(data)
-        if self.type.startswith("string"):
-            # again, with string self.bits is actually number of bytes
-            return self.decoder.dec(data)
-        if self.type.startswith("ufixed"):
-            return self.decoder.dec(data)
-        if self.type.startswith("fixed"):
-            return self.decoder.dec(data)
-
-        raise TypeError("Unknown (decoding) type {}".format(self.type))
-
     def enc(self, value):
         res = b""
 
@@ -284,7 +244,7 @@ class ABIType:
             if self.isarray:
                 res += lentype.enc(len(value))
                 for array_value in value:
-                    res += self.primitive_enc(array_value)
+                    res += self.decoder.enc(array_value)
             if self.type == "bytes":
                 return self.decoder.enc(value)
             if self.type == "string":
@@ -292,9 +252,9 @@ class ABIType:
         elif self.isarray:
 
             for array_index in range(self.count):
-                res += self.primitive_enc(value[array_index])
+                res += self.decoder.enc(value[array_index])
         else:
-            res += self.primitive_enc(value)
+            res += self.decoder.enc(value)
 
         return res
 
@@ -312,7 +272,7 @@ class ABIType:
                     if not data[pos:]:
                         raise ValueError(
                             "Ran out of data. Wrong signature perhaps?")
-                    val, bytesread = self.primitive_dec(data[pos:])
+                    val, bytesread = self.decoder.dec(data[pos:])
                     res.append(val)
                     pos += bytesread
                 return res
@@ -326,12 +286,12 @@ class ABIType:
                 if not data[pos:]:
                     raise ValueError(
                         "Ran out of data. Wrong signature perhaps?")
-                val, bytesread = self.primitive_dec(data[pos:])
+                val, bytesread = self.decoder.dec(data[pos:])
                 res.append(val)
                 pos += bytesread
             return res
         else:
-            return self.primitive_dec(data)[0]
+            return self.decoder.dec(data)[0]
 
 
 lentype = ABIType("uint256")
