@@ -55,4 +55,4 @@ class HTTPConnector(Connector):
     def invoke(self, data):
         serialized = json.dumps(data)
         r = requests.post(self.url, data=serialized)
-        return self.parse_result(r.json()).encode('utf8')
+        return self.parse_result(r.json())
