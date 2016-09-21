@@ -11,7 +11,7 @@ Tests for `empyrean` module.
 import pytest
 
 from empyrean.abi import tohex
-from empyrean.abi import enc_string, enc_uint256
+from empyrean.abi import StringType, UIntType
 from empyrean.abi import enc_method
 from empyrean.abi import parse_signature
 from empyrean.abi import encode_abi
@@ -395,19 +395,19 @@ class TestPrimitiveTypes:
     """ Test encoding of different type/arguments """
 
     def test_string_hello_world(self):
-        assert tohex(enc_string("Hello, world")) == (
+        assert tohex(StringType("string").enc("Hello, world")) == (
             b"00000000000000000000000000000000"
             b"0000000000000000000000000000000c"
             b"48656c6c6f2c20776f726c6400000000"
             b"00000000000000000000000000000000")
 
     def test_uint256_6(self):
-        assert tohex(enc_uint256(6)) == (
+        assert tohex(UIntType("uint").enc(6)) == (
             b'00000000000000000000000000000000'
             b'00000000000000000000000000000006')
 
     def test_uint32_69(self):
-        assert tohex(enc_uint256(69)) == (
+        assert tohex(UIntType("uint").enc(69)) == (
             b'00000000000000000000000000000000'
             b'00000000000000000000000000000045')
 

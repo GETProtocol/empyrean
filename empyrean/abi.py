@@ -19,120 +19,148 @@ def tohex(b):
     return binascii.hexlify(b)
 
 
-def enc_uint256(i, bits=256):
-    if i < 0 or i >= 2**bits:
-        raise ValueError("Value out of range for uint{}: {}".format(bits, i))
-    return rlp.utils.int_to_big_endian(i).rjust(32, b'\x00')
+class BaseType:
+
+    def __init__(self, type):
+        self.type = type
 
 
-def dec_uint256(data, bits=256):
-    # force into number of bits?
-    return decode_int(data[:32]), 32
+class UIntType(BaseType):
+
+    def enc(self, i, bits=256):
+        if i < 0 or i >= 2**bits:
+            raise ValueError(
+                "Value out of range for uint{}: {}".format(bits, i))
+        return rlp.utils.int_to_big_endian(i).rjust(32, b'\x00')
+
+    def dec(self, data, bits=256):
+        # force into number of bits?
+        return decode_int(data[:32]), 32
 
 
-def dec_int256(data, bits=256):
-    unsigned = decode_int(data[:32])
-    if unsigned >= 2 ** (bits - 1):
-        return unsigned - 2 ** bits, 32
-    return unsigned, 32
+class IntType(BaseType):
+
+    def dec(self, data, bits=256):
+        unsigned = decode_int(data[:32])
+        if unsigned >= 2 ** (bits - 1):
+            return unsigned - 2 ** bits, 32
+        return unsigned, 32
+
+    def enc(self, i, bits=256):
+        if i < -2 ** (bits - 1) or i >= 2 ** (bits - 1):
+            raise ValueError(
+                "Value out of range for int{}: {}".format(bits, i))
+        return rlp.utils.int_to_big_endian(i % 2 ** bits).rjust(32, b'\x00')
 
 
-def enc_int256(i, bits=256):
-    if i < -2 ** (bits - 1) or i >= 2 ** (bits - 1):
-        raise ValueError("Value out of range for int{}: {}".format(bits, i))
-    return rlp.utils.int_to_big_endian(i % 2 ** bits).rjust(32, b'\x00')
+class BoolType(BaseType):
+
+    def enc(self, i):
+        v = 1 if i else 0
+        return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
+
+    def dec(self, data):
+        """ strictly speaking this will also return \xff * 32 as bool
+            though the specification only mentions 1 as true value """
+        return bool(decode_int(data[:32])), 32
 
 
-def enc_bool(i):
-    v = 1 if i else 0
-    return rlp.utils.int_to_big_endian(v).rjust(32, b'\x00')
+class FixedType(BaseType):
+
+    def enc(self, i, bits, high, low):
+        if bits <= 0 or bits > 256:
+            raise ValueError(
+                "high+low must be between 0 .. 256 and divisible by 8")
+
+        if high % 8 or low % 8:
+            raise ValueError(
+                "high+low must be between 0 .. 256 and divisible by 8")
+
+        if i < -2 ** (high - 1) or i >= 2 ** (high - 1):
+            raise ValueError("Value out of range for fixed{}x{}: {}".format(
+                high, low, i))
+
+        float_point = i * 2 ** low
+        fixed_point = int(float_point)
+        value = fixed_point % 2 ** 256
+        return rlp.utils.int_to_big_endian(value).rjust(32, b'\x00')
+
+    def dec(self, data, bits, high, low):
+        i = decode_int(data[:32])
+        if i >= 2 ** (bits - 1):
+            i -= 2 ** bits
+        return i / 2 ** low, 32
 
 
-def dec_bool(data):
-    """ strictly speaking this will also return \xff * 32 as bool
-        though the specification only mentions 1 as true value """
-    return bool(decode_int(data[:32])), 32
+class UFixedType(BaseType):
+
+    def enc(self, i, bits, high, low):
+
+        if bits <= 0 or bits > 256:
+            raise ValueError(
+                "high+low must be between 0 .. 256 and divisible by 8")
+
+        if high % 8 or low % 8:
+            raise ValueError(
+                "high+low must be between 0 .. 256 and divisible by 8")
+
+        if i < 0 or i >= 2 ** high:
+            raise ValueError("Value out of range for ufixed{}x{}: {}".format(
+                high, low, i))
+
+        float_point = i * 2 ** low
+        fixed_point = int(float_point)
+        return rlp.utils.int_to_big_endian(fixed_point).rjust(32, b'\x00')
+
+    def dec(self, data, bits, high, low):
+        return decode_int(data[:32]) / 2 ** low, 32
 
 
-def enc_fixed(i, bits, high, low):
-    if bits <= 0 or bits > 256:
-        raise ValueError(
-            "high+low must be between 0 .. 256 and divisible by 8")
+class BytesType(BaseType):
 
-    if high % 8 or low % 8:
-        raise ValueError(
-            "high+low must be between 0 .. 256 and divisible by 8")
+    def enc(self, b, size=0):
+        """ size can be between 1 .. 32 or 0 (dynamic)"""
+        if size == 0:  # dynamic string
+            return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
+                b.ljust(multiple_of_32(len(b)), b'\x00')
 
-    if i < -2 ** (high - 1) or i >= 2 ** (high - 1):
-        raise ValueError("Value out of range for fixed{}x{}: {}".format(
-            high, low, i))
+        if len(b) > 32:
+            raise ValueError("Byte string is longer than 32 bytes")
+        if len(b) > size:
+            raise ValueError(
+                "Byte string is larger than defined {}".format(size))
+        remainder = 32 - len(b)
+        return b + b'\x00' * remainder
 
-    float_point = i * 2 ** low
-    fixed_point = int(float_point)
-    value = fixed_point % 2 ** 256
-    return rlp.utils.int_to_big_endian(value).rjust(32, b'\x00')
+    def dec(self, data, size=0):
+        if size == 0:
+            size = decode_int(data[:lentype.size()])
+            bytesdata = data[lentype.size():lentype.size() +
+                             multiple_of_32(size)]
+            return bytesdata.rstrip(b'\x00'), lentype.size() + multiple_of_32(size)
 
-
-def dec_fixed(data, bits, high, low):
-    i = decode_int(data[:32])
-    if i >= 2 ** (bits - 1):
-        i -= 2 ** bits
-    return i / 2 ** low, 32
-
-
-def enc_ufixed(i, bits, high, low):
-
-    if bits <= 0 or bits > 256:
-        raise ValueError(
-            "high+low must be between 0 .. 256 and divisible by 8")
-
-    if high % 8 or low % 8:
-        raise ValueError(
-            "high+low must be between 0 .. 256 and divisible by 8")
-
-    if i < 0 or i >= 2 ** high:
-        raise ValueError("Value out of range for ufixed{}x{}: {}".format(
-            high, low, i))
-
-    float_point = i * 2 ** low
-    fixed_point = int(float_point)
-    return rlp.utils.int_to_big_endian(fixed_point).rjust(32, b'\x00')
+        return data[:size].rstrip(b'\x00'), 32
 
 
-def dec_ufixed(data, bits, high, low):
-    return decode_int(data[:32]) / 2 ** low, 32
+class StringType(BytesType):
 
+    def enc(self, b, size=0):
+        return super().enc(b.encode('utf8'), size)
 
-def enc_string(b, size=0):
-    return enc_bytes(b.encode('utf8'), size)
+    def dec(self, data, size=0):
+        bytes, len = super().dec(data, size)
+        return bytes.decode('utf8'), size
 
-
-def dec_string(data, size=0):
-    bytes, len = dec_bytes(data, size)
-    return bytes.decode('utf8'), size
-
-
-def enc_bytes(b, size=0):
-    """ size can be between 1 .. 32 or 0 (dynamic)"""
-    if size == 0:  # dynamic string
-        return rlp.utils.int_to_big_endian(len(b)).rjust(32, b'\x00') + \
-            b.ljust(multiple_of_32(len(b)), b'\x00')
-
-    if len(b) > 32:
-        raise ValueError("Byte string is longer than 32 bytes")
-    if len(b) > size:
-        raise ValueError("Byte string is larger than defined {}".format(size))
-    remainder = 32 - len(b)
-    return b + b'\x00' * remainder
-
-
-def dec_bytes(data, size=0):
-    if size == 0:
-        size = decode_int(data[:lentype.size()])
-        bytesdata = data[lentype.size():lentype.size() + multiple_of_32(size)]
-        return bytesdata.rstrip(b'\x00'), lentype.size() + multiple_of_32(size)
-
-    return data[:size].rstrip(b'\x00'), 32
+decoders = dict(
+    int=IntType,
+    uint=UIntType,
+    fixed=FixedType,
+    ufixed=UFixedType,
+    bool=BoolType,
+    bytes=BytesType,
+    string=StringType,
+    address=UIntType
+)
 
 
 def parse_signature(signature):
@@ -164,6 +192,8 @@ class ABIType:
         self.isdynamic = self.type in ('string', 'bytes')
         self.isarray = False
         self.bits = self.getbits()
+        self.basetype = re.match("^([a-z]+)(\d+)?", type).group(1)
+        self.decoder = decoders.get(self.basetype)(type)
 
         if '[' in self.type:
             self.isarray = True
@@ -196,50 +226,50 @@ class ABIType:
 
     def primitive_enc(self, value):
         if self.type.startswith("address"):
-            return enc_uint256(value, 160)
+            return self.decoder.enc(value, 160)
 
         if self.type.startswith("uint"):
-            return enc_uint256(value, self.bits)
+            return self.decoder.enc(value, self.bits)
         if self.type.startswith("int"):
-            return enc_int256(value, self.bits)
+            return self.decoder.enc(value, self.bits)
         if self.type.startswith("bool"):
-            return enc_bool(value)
+            return self.decoder.enc(value)
         if self.type.startswith("bytes"):
             # in the case of bytes size is bytes, not self.bits
-            return enc_bytes(value, self.bits)
+            return self.decoder.enc(value, self.bits)
         if self.type.startswith("string"):
             # in the case of string size is bytes, not self.bits
-            return enc_string(value, self.bits)
+            return self.decoder.enc(value, self.bits)
         if self.type.startswith("ufixed"):
             high, low = self.gethighlow()
-            return enc_ufixed(value, self.bits, high, low)
+            return self.decoder.enc(value, self.bits, high, low)
         if self.type.startswith("fixed"):
             high, low = self.gethighlow()
-            return enc_fixed(value, self.bits, high, low)
+            return self.decoder.enc(value, self.bits, high, low)
         raise TypeError("Unknown type {}".format(self.type))
 
     def primitive_dec(self, data):
         if self.type.startswith("address"):
-            return dec_uint256(data, 160)
+            return self.decoder.dec(data, 160)
 
         if self.type.startswith("uint"):
-            return dec_uint256(data, self.bits)
+            return self.decoder.dec(data, self.bits)
         if self.type.startswith("int"):
-            return dec_int256(data, self.bits)
+            return self.decoder.dec(data, self.bits)
         if self.type.startswith("bool"):
-            return dec_bool(data)
+            return self.decoder.dec(data)
         if self.type.startswith("bytes"):
             # again, with bytes self.bits is actually number of bytes
-            return dec_bytes(data, self.bits)
+            return self.decoder.dec(data, self.bits)
         if self.type.startswith("string"):
             # again, with string self.bits is actually number of bytes
-            return dec_string(data, self.bits)
+            return self.decoder.dec(data, self.bits)
         if self.type.startswith("ufixed"):
             high, low = self.gethighlow()
-            return dec_ufixed(data, self.bits, high, low)
+            return self.decoder.dec(data, self.bits, high, low)
         if self.type.startswith("fixed"):
             high, low = self.gethighlow()
-            return dec_fixed(data, self.bits, high, low)
+            return self.decoder.dec(data, self.bits, high, low)
 
         raise TypeError("Unknown (decoding) type {}".format(self.type))
 
@@ -252,9 +282,9 @@ class ABIType:
                 for array_value in value:
                     res += self.primitive_enc(array_value)
             if self.type == "bytes":
-                return enc_bytes(value)
+                return self.decoder.enc(value)
             if self.type == "string":
-                return enc_string(value)
+                return self.decoder.enc(value)
         elif self.isarray:
 
             for array_index in range(self.count):
@@ -283,9 +313,9 @@ class ABIType:
                     pos += bytesread
                 return res
             if self.type == "bytes":
-                return dec_bytes(data)[0]
+                return self.decoder.dec(data)[0]
             if self.type == "string":
-                return dec_string(data)[0]
+                return self.decoder.dec(data)[0]
         elif self.isarray:
             res = []
             for i in range(self.count):
