@@ -402,12 +402,12 @@ class TestPrimitiveTypes:
             b"00000000000000000000000000000000")
 
     def test_uint256_6(self):
-        assert tohex(UIntType("uint").enc(6)) == (
+        assert tohex(UIntType("uint256").enc(6)) == (
             b'00000000000000000000000000000000'
             b'00000000000000000000000000000006')
 
     def test_uint32_69(self):
-        assert tohex(UIntType("uint").enc(69)) == (
+        assert tohex(UIntType("uint32").enc(69)) == (
             b'00000000000000000000000000000000'
             b'00000000000000000000000000000045')
 
