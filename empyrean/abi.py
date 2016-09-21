@@ -67,53 +67,61 @@ class BoolType(BaseType):
 
 class FixedType(BaseType):
 
-    def enc(self, i, bits, high, low):
+    def __init__(self, type):
+        super().__init__(type)
+        self.high = 0
+        self.low = 256
+
+        spec = re.search("(\d+)x?(\d+)?", self.type)
+        if spec:
+            groups = spec.groups()
+            if groups[1]:
+                self.high = int(groups[0])
+                self.low = int(groups[1])
+
+        if self.high % 8 or self.low % 8:
+            raise ValueError(
+                "high+low must be between 0 .. 256 and divisible by 8")
+
+    def enc(self, i, bits):
         if bits <= 0 or bits > 256:
             raise ValueError(
                 "high+low must be between 0 .. 256 and divisible by 8")
 
-        if high % 8 or low % 8:
-            raise ValueError(
-                "high+low must be between 0 .. 256 and divisible by 8")
-
-        if i < -2 ** (high - 1) or i >= 2 ** (high - 1):
+        if i < -2 ** (self.high - 1) or i >= 2 ** (self.high - 1):
             raise ValueError("Value out of range for fixed{}x{}: {}".format(
-                high, low, i))
+                self.high, self.low, i))
 
-        float_point = i * 2 ** low
+        float_point = i * 2 ** self.low
         fixed_point = int(float_point)
         value = fixed_point % 2 ** 256
         return rlp.utils.int_to_big_endian(value).rjust(32, b'\x00')
 
-    def dec(self, data, bits, high, low):
+    def dec(self, data, bits):
         i = decode_int(data[:32])
         if i >= 2 ** (bits - 1):
             i -= 2 ** bits
-        return i / 2 ** low, 32
+        return i / 2 ** self.low, 32
 
 
-class UFixedType(BaseType):
+class UFixedType(FixedType):
 
-    def enc(self, i, bits, high, low):
+    def enc(self, i, bits):
 
         if bits <= 0 or bits > 256:
             raise ValueError(
                 "high+low must be between 0 .. 256 and divisible by 8")
 
-        if high % 8 or low % 8:
-            raise ValueError(
-                "high+low must be between 0 .. 256 and divisible by 8")
-
-        if i < 0 or i >= 2 ** high:
+        if i < 0 or i >= 2 ** self.high:
             raise ValueError("Value out of range for ufixed{}x{}: {}".format(
-                high, low, i))
+                self.high, self.low, i))
 
-        float_point = i * 2 ** low
+        float_point = i * 2 ** self.low
         fixed_point = int(float_point)
         return rlp.utils.int_to_big_endian(fixed_point).rjust(32, b'\x00')
 
-    def dec(self, data, bits, high, low):
-        return decode_int(data[:32]) / 2 ** low, 32
+    def dec(self, data, bits):
+        return decode_int(data[:32]) / 2 ** self.low, 32
 
 
 class BytesType(BaseType):
@@ -213,14 +221,6 @@ class ABIType:
             return int(groups[0])
         return 0
 
-    def gethighlow(self):
-        spec = re.search("(\d+)x?(\d+)?", self.type)
-        if spec:
-            groups = spec.groups()
-            if groups[1]:
-                return int(groups[0]), int(groups[1])
-        return 0, 256
-
     def size(self):
         return self.count * 32
 
@@ -241,11 +241,9 @@ class ABIType:
             # in the case of string size is bytes, not self.bits
             return self.decoder.enc(value, self.bits)
         if self.type.startswith("ufixed"):
-            high, low = self.gethighlow()
-            return self.decoder.enc(value, self.bits, high, low)
+            return self.decoder.enc(value, self.bits)
         if self.type.startswith("fixed"):
-            high, low = self.gethighlow()
-            return self.decoder.enc(value, self.bits, high, low)
+            return self.decoder.enc(value, self.bits)
         raise TypeError("Unknown type {}".format(self.type))
 
     def primitive_dec(self, data):
@@ -265,11 +263,9 @@ class ABIType:
             # again, with string self.bits is actually number of bytes
             return self.decoder.dec(data, self.bits)
         if self.type.startswith("ufixed"):
-            high, low = self.gethighlow()
-            return self.decoder.dec(data, self.bits, high, low)
+            return self.decoder.dec(data, self.bits)
         if self.type.startswith("fixed"):
-            high, low = self.gethighlow()
-            return self.decoder.dec(data, self.bits, high, low)
+            return self.decoder.dec(data, self.bits)
 
         raise TypeError("Unknown (decoding) type {}".format(self.type))
 
