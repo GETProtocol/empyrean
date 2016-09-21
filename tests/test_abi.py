@@ -323,6 +323,37 @@ class TestBoolType:
 
 
 class TestUFixedType:
+    # TODO: test non-symetric high/low e.g. 192.64
+
+    def test_fixed_size(self, multiple_of_eight):
+        # wrong! m+n = 256! (so 256 itself isn't a usable multiple_of_eight)
+        assert ABIType("ufixed{0}x{0}".format(multiple_of_eight)).size() == 32
+
+    def test_fixed_is_not_dynamic(self, multiple_of_eight):
+        assert not ABIType("ufixed{0}x{0}".format(multiple_of_eight)).isdynamic
+
+    def test_fixed_unsized_array_is_dynamic(self, multiple_of_eight):
+        assert ABIType("ufixed{0}x{0}[]".format(multiple_of_eight)).isdynamic
+
+    @pytest.mark.parametrize("size,expect",
+                             [(i, i * 32) for i in (1, 2, 10, 20, 100)])
+    def test_fixed_fixedarray_size2(self, multiple_of_eight, size, expect):
+        t = "ufixed{0}x{0}[{1}]".format(multiple_of_eight, size)
+        assert ABIType(t).size() == expect
+
+    def test_enc(self):
+        t = ABIType("ufixed128x128")
+
+        assert tohex(t.enc(1.1)) == \
+            b"00000000000000000000000000000001199999999999a0000000000000000000"
+        t = ABIType("ufixed64x64")
+
+        assert tohex(t.enc(1.1)) == \
+            b"000000000000000000000000000000000000000000000001199999999999a000"
+
+
+class TestFixedType:
+    # TODO: test non-symetric high/low e.g. 192.64
 
     def test_fixed_size(self, multiple_of_eight):
         # wrong! m+n = 256! (so 256 itself isn't a usable multiple_of_eight)
@@ -341,14 +372,23 @@ class TestUFixedType:
         assert ABIType(t).size() == expect
 
     def test_enc(self):
-        t = ABIType("ufixed128x128")
+        t = ABIType("fixed128x128")
 
-        assert tohex(t.enc(1.1)) == \
-            b"00000000000000000000000000000001199999999999a0000000000000000000"
-        t = ABIType("ufixed64x64")
+        assert tohex(t.enc(-1.1)) == \
+            b"fffffffffffffffffffffffffffffffee6666666666660000000000000000000"
 
-        assert tohex(t.enc(1.1)) == \
-            b"000000000000000000000000000000000000000000000001199999999999a000"
+        t = ABIType("fixed64x64")
+
+        assert tohex(t.enc(-1.1)) == \
+            b"fffffffffffffffffffffffffffffffffffffffffffffffee666666666666000"
+
+        t = ABIType("fixed192x64")
+        assert tohex(t.enc(-2**191)) == \
+            b"8000000000000000000000000000000000000000000000000000000000000000"
+
+        t = ABIType("fixed192x64")
+        assert tohex(t.enc(2**191 - 1)) == \
+            b"7fffffffffffffffffffffffffffffffffffffffffffffff0000000000000000"
 
 
 class TestPrimitiveTypes:
@@ -617,6 +657,33 @@ class TestABIDecode:
             b'0000000000000009fd70a3d70a3d800000000000000000000000000000000000'
         )
         assert decode_abi(["ufixed64x192[]"], data) == [[1.333333, 0.5, 9.99]]
+
+    # fixed
+    def test_fixed192x64_decode_min(self):
+        data = b"8000000000000000000000000000000000000000000000000000000000000000"
+        assert decode_abi(["fixed192x64"], data) == [-2.0**191]
+
+    def test_fixed192x64_decode_max(self):
+        data = b"7fffffffffffffffffffffffffffffffffffffffffffffff0000000000000000"
+        assert decode_abi(["fixed192x64"], data) == [(2.0**191) - 1]
+
+    def test_fixed192x64_static_array(self):
+        data = (
+            b'8000000000000000000000000000000000000000000000000000000000000000'
+            b'fffffffffffffffffffffffffffffffffffffffffffffb2d6ea4a8c154c00000'
+            b'7fffffffffffffffffffffffffffffffffffffffffffffff0000000000000000'
+        )
+        assert decode_abi(["fixed192x64[3]"], data) == [[-2.0**191, -1234.5678, 2.0**191-1]]
+
+    def test_fixed192x64_dynamic_array(self):
+        data = (
+            b'0000000000000000000000000000000000000000000000000000000000000020'
+            b'0000000000000000000000000000000000000000000000000000000000000003'
+            b'8000000000000000000000000000000000000000000000000000000000000000'
+            b'fffffffffffffffffffffffffffffffffffffffffffffb2d6ea4a8c154c00000'
+            b'7fffffffffffffffffffffffffffffffffffffffffffffff0000000000000000'
+        )
+        assert decode_abi(["fixed192x64[]"], data) == [[-2.0**191, -1234.5678, 2.0**191-1]]
     # address
 
     def test_single_address(self):
