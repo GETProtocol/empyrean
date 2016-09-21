@@ -44,7 +44,7 @@ class IPCConnector(Connector):
             parsed_res = json.loads(res.decode("utf8"))
         except ValueError:
             raise
-        return self.parse_result(parsed_res)
+        return self.parse_result(parsed_res).encode('utf8')
 
 
 class HTTPConnector(Connector):
@@ -55,4 +55,4 @@ class HTTPConnector(Connector):
     def invoke(self, data):
         serialized = json.dumps(data)
         r = requests.post(self.url, data=serialized)
-        return self.parse_result(r.json())
+        return self.parse_result(r.json()).encode('utf8')
