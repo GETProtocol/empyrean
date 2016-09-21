@@ -50,21 +50,17 @@ class BaseType:
         return 0
 
     def enc_complex(self, value):
+        """
+            encode a complex structure
+        """
         res = b""
 
-        if self.isdynamic:
-            if self.isarray:
+        if self.isarray:
+            if self.isdynamic:
+                # depending on lentype is strangely recursive
                 res += lentype.enc(len(value))
-                for array_value in value:
-                    res += self.enc(array_value)
-            if self.type == "bytes":
-                return self.enc(value)
-            if self.type == "string":
-                return self.enc(value)
-        elif self.isarray:
-
-            for array_index in range(self.count):
-                res += self.enc(value[array_index])
+            for array_value in value:
+                res += self.enc(array_value)
         else:
             res += self.enc(value)
 
@@ -75,26 +71,13 @@ class BaseType:
             will also hold the rest of the tail since the called won't
             know where it ends """
         pos = 0
-        if self.isdynamic:
-            if self.isarray:
-                res = []
+        if self.isarray:
+            count = self.count
+            if self.isdynamic:
                 count = decode_int(data[:lentype.size()])
                 pos += lentype.size()
-                for i in range(count):
-                    if not data[pos:]:
-                        raise ValueError(
-                            "Ran out of data. Wrong signature perhaps?")
-                    val, bytesread = self.dec(data[pos:])
-                    res.append(val)
-                    pos += bytesread
-                return res
-            if self.type == "bytes":
-                return self.dec(data)[0]
-            if self.type == "string":
-                return self.dec(data)[0]
-        elif self.isarray:
             res = []
-            for i in range(self.count):
+            for i in range(count):
                 if not data[pos:]:
                     raise ValueError(
                         "Ran out of data. Wrong signature perhaps?")
