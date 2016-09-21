@@ -49,10 +49,6 @@ class UIntType(BaseType):
 
 
 class IntType(BaseType):
-    def __init__(self, type):
-        super().__init__(type)
-        if self.type == "address":
-            self.bits = 160
 
     def dec(self, data):
         unsigned = decode_int(data[:32])
@@ -176,6 +172,11 @@ class StringType(BytesType):
         bytes, len = super().dec(data)
         return bytes.decode('utf8'), len
 
+class AddressType(UIntType):
+    def __init__(self, type):
+        super().__init__(type)
+        self.bits = 160
+
 decoders = dict(
     int=IntType,
     uint=UIntType,
@@ -184,7 +185,7 @@ decoders = dict(
     bool=BoolType,
     bytes=BytesType,
     string=StringType,
-    address=UIntType
+    address=AddressType
 )
 
 
