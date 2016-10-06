@@ -36,6 +36,9 @@ class EthNamespace(Namespace):
     def coinbase(self):
         return self("coinbase")
 
+    def gasPrice(self):
+        return self("gasPrice")
+
     def compileSolidity(self, code):
         return self("compileSolidity", code)
 

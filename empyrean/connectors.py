@@ -44,7 +44,7 @@ class IPCConnector(Connector):
             parsed_res = json.loads(res.decode("utf8"))
         except ValueError:
             raise
-        return self.parse_result(parsed_res)
+        return self.parse_result(parsed_res).encode('utf8')
 
 
 class HTTPConnector(Connector):
