@@ -138,6 +138,9 @@ class PersonalNamespace(Namespace):
     def unlockAccount(self, address, passphrase, timeout=300):
         return self("unlockAccount", address, passphrase, timeout)
 
+    def newAccount(self, password):
+        return self("newAccount", password)
+
 
 class Web3Namespace(Namespace):
     name = "web3"
