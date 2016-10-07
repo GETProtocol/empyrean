@@ -19,7 +19,9 @@ class Connector(object):
             for exc in exceptions.all:
                 exc.raise_if_matches(code, message)
 
-        return data['result']
+        res = data['result']
+
+        return res
 
 
 class IPCConnector(Connector):
@@ -44,7 +46,9 @@ class IPCConnector(Connector):
             parsed_res = json.loads(res.decode("utf8"))
         except ValueError:
             raise
-        return self.parse_result(parsed_res).encode('utf8')
+
+        res = self.parse_result(parsed_res)
+        return res
 
 
 class HTTPConnector(Connector):

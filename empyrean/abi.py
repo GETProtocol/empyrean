@@ -339,7 +339,7 @@ def decode_abi(signature, data):
     """
         Decode the (abi serialized) result data from a call() invocation
     """
-    if data.startswith(b"0x"):
+    if data.startswith("0x"):
         data = data[2:]
     data = binascii.unhexlify(data)
     decoded = []
@@ -358,9 +358,9 @@ def decode_abi(signature, data):
 
     return decoded
 
+
 def build_payload(signature, *args):
     m, a = parse_signature(signature)
     method = enc_method(signature)
     args = encode_abi(a, args)
     return tohex(method + args)
-
